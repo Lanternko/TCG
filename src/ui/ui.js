@@ -62,7 +62,7 @@ function renderCpuPitcher(pitcher) {
 function renderHand(hand, selectedIndex, selectHandler) {
   const handContainer = document.getElementById('player-hand');
   if (!handContainer) return;
-  handContainer.innerHTML = ''; // 清空現有手牌
+  handContainer.innerHTML = '';
 
   hand.forEach((card, index) => {
     const cardEl = document.createElement('div');
@@ -70,10 +70,23 @@ function renderHand(hand, selectedIndex, selectHandler) {
     if (index === selectedIndex) {
       cardEl.classList.add('selected');
     }
+    
+    // --- 新增的邏輯 ---
+    if (card.type === 'action') {
+      cardEl.classList.add('action-card'); // 為戰術卡新增 class
+    }
+    // --- 結束 ---
+
+    // 根據卡牌類型，顯示不同的資訊
+    const statsHTML = card.type === 'batter'
+      ? `POW:${card.stats.power} HIT:${card.stats.hitRate} CON:${card.stats.contact}`
+      : card.effects.play.description; // 戰術卡直接顯示描述
+
     cardEl.innerHTML = `
       <div class="card-name">${card.name}</div>
-      <div class="card-ovr">${card.stats.ovr}</div>
-      <div class="card-stats">POW:${card.stats.power} HIT:${card.stats.hitRate} CON:${card.stats.contact}</div>`;
+      <div class="card-ovr">${card.ovr}</div>
+      <div class="card-stats">${statsHTML}</div>`;
+      
     cardEl.onclick = () => selectHandler(index);
     handContainer.appendChild(cardEl);
   });

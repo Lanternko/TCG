@@ -88,6 +88,62 @@ function applyAllActiveEffects(state, batterStats, pitcherStats) {
         }
     });
 }
+/**
+ * NEW: 處理戰術卡效果
+ * @param {object} card - 被打出的戰術卡
+ * @param {object} state - 遊戲狀態
+ * @returns {string} - 描述結果的文字
+ */
+export function applyActionCard(card, state) {
+  const effect = card.effects.play;
+  let outcomeDescription = "戰術失敗了...";
+
+  switch (effect.action) {
+    case "bunt":
+      // 推進所有跑者，打者出局
+      state.outs++;
+      const runners = state.bases.filter(Boolean);
+      state.bases = [null, null, null];
+      runners.forEach(runner => {
+        const currentBase = state.bases.indexOf(runner);
+        const newBaseIndex = currentBase + 1;
+        if (newBaseIndex < 3) state.bases[newBaseIndex] = runner;
+        else state.score.away++; // 跑回本壘得分
+      });
+      outcomeDescription = `${card.name}成功！跑者向前推進！`;
+      break;
+
+    case "steal":
+      const runner = state.bases[0]; // 簡化：只偷二壘
+      if (runner) {
+        // 盜壘成功率 = (跑者速度 - 投手力量) / 100
+        const successChance = (runner.stats.speed - state.cpu.activePitcher.stats.power) / 100 + 0.5;
+        if (Math.random() < successChance) {
+          state.bases[1] = runner;
+          state.bases[0] = null;
+          outcomeDescription = `${runner.name} 盜壘成功！`;
+        } else {
+          state.bases[0] = null;
+          state.outs++;
+          outcomeDescription = `${runner.name} 盜壘失敗，被抓到了！`;
+        }
+      } else {
+        outcomeDescription = "一壘上沒有跑者可以盜壘！";
+      }
+      break;
+
+    case "buff":
+      // 將效果加入 activeEffects，它會在 simulateAtBat 中被應用
+      state.activeEffects.push({
+        cardName: card.name,
+        type: 'buff',
+        ...effect
+      });
+      outcomeDescription = "全隊的專注力提升了！";
+      break;
+  }
+  return outcomeDescription;
+}
 
 function hitBySpeed(speed, state) {
   let doubleChance = 0.20 + (speed - 75) * 0.002;

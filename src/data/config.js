@@ -13,4 +13,9 @@ export const CONFIG = {
     batterPowerHR: 0.0017,
     batterHitRate: 0.0022,
   },
+  // --- 新增 ---
+  ovrWeights: {
+    batter: { power: 0.3, hitRate: 0.3, contact: 0.2, speed: 0.2, scale: 1.5, base: 25 },
+    pitcher: { power: 0.3, velocity: 0.3, control: 0.2, technique: 0.2, staminaEffect: 0.5, scale: 1.5, base: 25 }
+  }
 };

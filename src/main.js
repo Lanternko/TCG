@@ -69,12 +69,17 @@ function runPlayerTurn() {
   const card = state.player.hand[state.selected];
   if (!card) return;
 
-  // --- 效果與模擬階段 ---
-  processCardEffects(card, 'play', state);
-  const result = simulateAtBat(card, state.cpu.activePitcher, state);
-  
-  // --- 結果處理階段 ---
-  processAtBatOutcome(result, card);
+  // --- 核心改動：根據卡牌類型決定流程 ---
+  if (card.type === 'batter') {
+    // 1. 如果是打者卡，執行原本的打擊流程
+    processCardEffects(card, 'play', state);
+    const result = simulateAtBat(card, state.cpu.activePitcher, state);
+    processAtBatOutcome(result, card);
+  } else if (card.type === 'action') {
+    // 2. 如果是戰術卡，執行新的戰術流程
+    const description = applyActionCard(card, state);
+    document.getElementById('outcome-text').textContent = description;
+  }
 
   // --- 狀態更新階段 ---
   // 從手牌移除卡牌，加入棄牌堆
@@ -86,7 +91,7 @@ function runPlayerTurn() {
   // 清理一次性效果 (例如：只持續一次打擊的效果)
   state.activeEffects = state.activeEffects.filter(e => e.duration !== "atBat");
 
-  // --- 回合結束檢查 ---
+  // --- 回合結束檢查 --- 
   render(state, handlers); // 先渲染一次本次打擊的結果
 
   if (state.outs >= 3) {

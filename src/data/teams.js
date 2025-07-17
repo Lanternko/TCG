@@ -127,7 +127,52 @@ export const TEAMS = [
       stats: { power: 88, velocity: 85, control: 85, technique: 90, ovr: 92 }
     }
   ],
-  actionCards: []
+  actionCards: [
+    {
+      type: "action", // 類型改為 action
+      name: "犧牲觸擊",
+      ovr: "戰術",
+      stats: {}, // 戰術卡通常沒有自己的屬性
+      effects: {
+        play: {
+          action: "bunt",
+          description: "嘗試推進壘上所有跑者一個壘包，但打者會出局。",
+        }
+      }
+    },
+    {
+      type: "action",
+      name: "盜壘指令",
+      ovr: "戰術",
+      stats: {},
+      effects: {
+        play: {
+          action: "steal",
+          target: "runner_on_first", // 指定目標
+          description: "命令一壘的跑者嘗試盜向二壘！",
+        }
+      }
+    },
+    {
+      type: "action",
+      name: "深度專注",
+      ovr: "戰術",
+      stats: {},
+      effects: {
+        play: {
+          action: "buff",
+          target: "hand", // 目標是手牌
+          stat: "contact",
+          value: 15,
+          duration: "turn", // 效果持續一回合
+          description: "本回合中，你手中所有打者的專注力大幅提升。",
+        }
+      }
     }
-
-];
+  ],
+    }
+  ];
+  
+export function getTeamById(teamId) {
+  return TEAMS.find(team => team.id === teamId);
+}
