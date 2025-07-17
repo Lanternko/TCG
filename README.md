@@ -1,0 +1,12 @@
+/public
+  index.html
+/src
+  data/
+    config.js
+    teams.js
+  engine/
+    gameState.js
+    sim.js
+  ui/
+    ui.js
+  main.js
