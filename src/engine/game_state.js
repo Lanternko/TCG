@@ -1,4 +1,5 @@
-// /src/engine/gameState.js
+// src/engine/game_state.js
+
 import { CONFIG } from '../data/config.js';
 import { TEAMS } from '../data/teams.js';
 
@@ -11,19 +12,20 @@ export function createGameState() {
     bases: [null, null, null],
     score: { away: 0, home: 0 },
     player: {
-      team: TEAMS[0], // Default to Yankees; can be changed to Philosophers
+      // 核心改動：將預設隊伍從 TEAMS[0] 改為 TEAMS[2] (哲學家隊)
+      team: TEAMS[2], 
       deck: [],
       hand: [],
       discard: [],
     },
     cpu: {
-      team: TEAMS[1],
+      team: TEAMS[1], // CPU 保持為 Dodgers
       deck: [],
       activePitcher: null,
     },
     selected: -1,
     over: false,
     playerTurn: true,
-    activeEffects: [], // New: Track active effects (e.g., stat boosts, aura effects)
+    activeEffects: [],
   };
 }

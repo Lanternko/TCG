@@ -1,5 +1,4 @@
 // src/ui/ui.js
-
 /**
  * 主渲染函數，協調所有 UI 元件的更新
  * @param {object} state - 全局遊戲狀態物件
@@ -38,38 +37,31 @@ function renderOuts(outs) {
 
 function renderInning(inning, half) {
   const inningDisplay = document.getElementById('inning-display');
+  if (!inningDisplay) return;
   const inningSuffix = ['st', 'nd', 'rd'][inning - 1] || 'th';
-  inningDisplay.innerHTML = `
-    <span class="inning-indicator ${half}"></span> 
-    ${inning}${inningSuffix}
-  `;
+  inningDisplay.innerHTML = `<span class="inning-indicator ${half}"></span> ${inning}${inningSuffix}`;
 }
 
 function renderBases(bases) {
-  document.getElementById('first-base').classList.toggle('occupied', !!bases[0]);
-  document.getElementById('second-base').classList.toggle('occupied', !!bases[1]);
-  document.getElementById('third-base').classList.toggle('occupied', !!bases[2]);
+  document.getElementById('first-base')?.classList.toggle('occupied', !!bases[0]);
+  document.getElementById('second-base')?.classList.toggle('occupied', !!bases[1]);
+  document.getElementById('third-base')?.classList.toggle('occupied', !!bases[2]);
 }
 
 function renderCpuPitcher(pitcher) {
   const pitcherArea = document.getElementById('cpu-pitcher-area');
-  if (!pitcher) {
-    pitcherArea.innerHTML = '';
-    return;
-  }
-  pitcherArea.innerHTML = `
+  if (!pitcherArea) return;
+  pitcherArea.innerHTML = pitcher ? `
     <div class="card">
       <div class="card-name">${pitcher.name}</div>
       <div class="card-ovr">${pitcher.stats.ovr}</div>
-      <div class="card-stats">
-        POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity} CTL:${pitcher.stats.control}
-      </div>
-    </div>
-  `;
+      <div class="card-stats">POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity} CTL:${pitcher.stats.control}</div>
+    </div>` : '';
 }
 
 function renderHand(hand, selectedIndex, selectHandler) {
   const handContainer = document.getElementById('player-hand');
+  if (!handContainer) return;
   handContainer.innerHTML = ''; // 清空現有手牌
 
   hand.forEach((card, index) => {
@@ -81,25 +73,32 @@ function renderHand(hand, selectedIndex, selectHandler) {
     cardEl.innerHTML = `
       <div class="card-name">${card.name}</div>
       <div class="card-ovr">${card.stats.ovr}</div>
-      <div class="card-stats">
-        POW:${card.stats.power} HIT:${card.stats.hitRate} CON:${card.stats.contact}
-      </div>
-    `;
+      <div class="card-stats">POW:${card.stats.power} HIT:${card.stats.hitRate} CON:${card.stats.contact}</div>`;
     cardEl.onclick = () => selectHandler(index);
     handContainer.appendChild(cardEl);
   });
 }
 
 function renderDeckInfo(player) {
-  document.getElementById('player-deck-count').textContent = player.deck.length;
-  document.getElementById('player-discard-count').textContent = player.discard.length;
+  const deckCount = document.getElementById('player-deck-count');
+  const discardCount = document.getElementById('player-discard-count');
+  if (deckCount) deckCount.textContent = player.deck.length;
+  if (discardCount) discardCount.textContent = player.discard.length;
 }
 
 function renderMainButton(state) {
   const button = document.getElementById('main-button');
+  if (!button) return;
+  
+  // 檢查遊戲是否已開始 (例如，檢查投手是否存在)
+  const gameStarted = !!state.cpu.activePitcher;
+
   if (state.over) {
     button.textContent = "比賽結束";
     button.disabled = true;
+  } else if (!gameStarted) {
+    button.textContent = "Play Ball";
+    button.disabled = false;
   } else if (state.playerTurn) {
     button.disabled = state.selected === -1;
     button.textContent = state.selected === -1 ? "選擇卡牌" : "確認出牌";

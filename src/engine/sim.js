@@ -2,10 +2,11 @@
 import { CONFIG } from '../data/config.js';
 
 export function simulateAtBat(batter, pitcher, state) {
-  // Apply active effects (e.g., Socrates' synergy, Heraclitus' aura)
-  const modifiedBatter = { ...batter, stats: { ...batter.stats } };
-  const modifiedPitcher = { ...pitcher, stats: { ...pitcher.stats } };
-  applyEffects(state, modifiedBatter, modifiedPitcher);
+  // 建立一個臨時的、被效果修改過的打者和投手物件
+  const modifiedBatter = JSON.parse(JSON.stringify(batter));
+  const modifiedPitcher = JSON.parse(JSON.stringify(pitcher));
+  // 應用所有當前回合的 activeEffects
+  applyAllActiveEffects(state, modifiedBatter.stats, modifiedPitcher.stats);
 
   const { norm } = CONFIG;
   const base = { K: 0.2, BB: 0.08, HR: 0.05, H: 0.25 };
@@ -28,6 +29,64 @@ export function simulateAtBat(batter, pitcher, state) {
   c += pH;
   if (r < c) return hitBySpeed(modifiedBatter.stats.speed, state);
   return { type: 'OUT', description: `${batter.name} 出局。` };
+}
+
+/**
+ * NEW: 處理卡牌效果並將其加入 activeEffects
+ * @param {object} card - 被觸發效果的卡牌
+ * @param {string} trigger - 觸發時機 (e.g., 'play', 'death', 'aura')
+ * @param {object} state - 遊戲狀態
+ */
+export function processCardEffects(card, trigger, state) {
+    if (!card.effects || !card.effects[trigger]) {
+        return;
+    }
+
+    const effect = card.effects[trigger];
+    const effectData = {
+        cardName: card.name,
+        type: trigger,
+        ...effect
+    };
+    
+    // 特定效果的直接處理
+    if (effect.action === "shuffleToDeck" && trigger === "play") {
+        if (state.player.discard.length > 0) {
+            const cardToShuffle = state.player.discard.splice(0, 1)[0];
+            state.player.deck.push(cardToShuffle);
+            // 你可能需要一個 shuffleDeck 函數
+            console.log(`${card.name} 的效果：將 ${cardToShuffle.name} 從棄牌堆洗回牌庫！`);
+        }
+        return; // 此效果不進入 activeEffects
+    }
+
+    // 將需要持續作用的效果加入 activeEffects
+    state.activeEffects.push(effectData);
+    console.log(`觸發效果: ${card.name} 的 ${trigger} 效果已被啟動。`);
+}
+
+/**
+ * NEW: 應用所有 activeEffects
+ * @param {object} state - 遊戲狀態
+ * @param {object} batterStats - 要修改的打者屬性
+ * @param {object} pitcherStats - 要修改的投手屬性
+ */
+function applyAllActiveEffects(state, batterStats, pitcherStats) {
+    state.activeEffects.forEach(effect => {
+        // 檢查觸發條件
+        const isSocratesSynergy = effect.cardName === "Socrates" && state.bases.some(b => b && b.name === "Socrates");
+        const isHeraclitusAura = effect.cardName === "Heraclitus" && state.bases.some(b => b && b.name === "Heraclitus");
+
+        if (effect.target === "allFriendlyBatters" && (isSocratesSynergy || isHeraclitusAura)) {
+            batterStats[effect.stat] += effect.value;
+        } else if (effect.target === "enemyPitcher" && effect.duration === "atBat") {
+            pitcherStats[effect.stat] += effect.value;
+        } else if (effect.target === "hand" && effect.type === "play") {
+            // 這個效果應該在 main.js 的抽牌/出牌階段處理，這裡僅作範例
+        } else if (effect.target === "deck" && effect.type === "death") {
+             // 永久效果在 main.js 中處理一次即可
+        }
+    });
 }
 
 function hitBySpeed(speed, state) {
