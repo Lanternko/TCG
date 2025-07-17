@@ -1,28 +1,110 @@
-export function render(state, handlers) {
-  const $app = document.getElementById('app');
-  $app.innerHTML = /* html */`
-    <!-- 頂部 -->
-    <div class="top-bar">${topBar(state)}</div>
-    <!-- 球場 -->
-    <div class="field">${diamond(state)}</div>
-    <!-- 按鈕 -->
-    <div class="action-area">
-      <button id="btn" ${state.over ? 'disabled' : ''}>
-        ${buttonLabel(state)}
-      </button>
-    </div>
-    <!-- 手牌 -->
-    <div class="hand">${hand(state)}</div>
-  `;
+// src/ui/ui.js
 
-  // 綁事件
-  document.querySelectorAll('.card-hand').forEach((el, i) =>
-    el.onclick = () => handlers.select(i));
-  document.getElementById('btn').onclick = handlers.button;
+/**
+ * 主渲染函數，協調所有 UI 元件的更新
+ * @param {object} state - 全局遊戲狀態物件
+ * @param {object} handlers - 事件處理器物件 (select, button)
+ */
+export function render(state, handlers) {
+  // 更新所有 UI 區塊
+  renderScore(state.score);
+  renderOuts(state.outs);
+  renderInning(state.currentInning, state.half);
+  renderBases(state.bases);
+  renderCpuPitcher(state.cpu.activePitcher);
+  renderHand(state.player.hand, state.selected, handlers.select);
+  renderDeckInfo(state.player);
+  renderMainButton(state);
+  
+  // 綁定主按鈕事件 (如果尚未綁定)
+  const button = document.getElementById('main-button');
+  if (!button.onclick) {
+    button.onclick = handlers.button;
+  }
 }
 
-/* 各段 HTML 片段函式 (topBar/diamond/hand/buttonLabel) 請依需求拆寫 */
-function topBar(state){ return `<div>${state.score.away}-${state.score.home}</div>`; }
-function diamond(){ return `<div class="diamond"></div>`; }
-function hand(state){ return state.player.hand.map(c=>`<div>${c.name}</div>`).join(''); }
-function buttonLabel(state){ return state.selected===-1?'選擇卡牌':'確認出牌'; }
+// --- 以下是各個 UI 區塊的輔助渲染函數 ---
+
+function renderScore(score) {
+  document.getElementById('away-score').textContent = score.away;
+  document.getElementById('home-score').textContent = score.home;
+}
+
+function renderOuts(outs) {
+  document.querySelectorAll('.out-light').forEach((light, index) => {
+    light.classList.toggle('active', index < outs);
+  });
+}
+
+function renderInning(inning, half) {
+  const inningDisplay = document.getElementById('inning-display');
+  const inningSuffix = ['st', 'nd', 'rd'][inning - 1] || 'th';
+  inningDisplay.innerHTML = `
+    <span class="inning-indicator ${half}"></span> 
+    ${inning}${inningSuffix}
+  `;
+}
+
+function renderBases(bases) {
+  document.getElementById('first-base').classList.toggle('occupied', !!bases[0]);
+  document.getElementById('second-base').classList.toggle('occupied', !!bases[1]);
+  document.getElementById('third-base').classList.toggle('occupied', !!bases[2]);
+}
+
+function renderCpuPitcher(pitcher) {
+  const pitcherArea = document.getElementById('cpu-pitcher-area');
+  if (!pitcher) {
+    pitcherArea.innerHTML = '';
+    return;
+  }
+  pitcherArea.innerHTML = `
+    <div class="card">
+      <div class="card-name">${pitcher.name}</div>
+      <div class="card-ovr">${pitcher.stats.ovr}</div>
+      <div class="card-stats">
+        POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity} CTL:${pitcher.stats.control}
+      </div>
+    </div>
+  `;
+}
+
+function renderHand(hand, selectedIndex, selectHandler) {
+  const handContainer = document.getElementById('player-hand');
+  handContainer.innerHTML = ''; // 清空現有手牌
+
+  hand.forEach((card, index) => {
+    const cardEl = document.createElement('div');
+    cardEl.className = 'card';
+    if (index === selectedIndex) {
+      cardEl.classList.add('selected');
+    }
+    cardEl.innerHTML = `
+      <div class="card-name">${card.name}</div>
+      <div class="card-ovr">${card.stats.ovr}</div>
+      <div class="card-stats">
+        POW:${card.stats.power} HIT:${card.stats.hitRate} CON:${card.stats.contact}
+      </div>
+    `;
+    cardEl.onclick = () => selectHandler(index);
+    handContainer.appendChild(cardEl);
+  });
+}
+
+function renderDeckInfo(player) {
+  document.getElementById('player-deck-count').textContent = player.deck.length;
+  document.getElementById('player-discard-count').textContent = player.discard.length;
+}
+
+function renderMainButton(state) {
+  const button = document.getElementById('main-button');
+  if (state.over) {
+    button.textContent = "比賽結束";
+    button.disabled = true;
+  } else if (state.playerTurn) {
+    button.disabled = state.selected === -1;
+    button.textContent = state.selected === -1 ? "選擇卡牌" : "確認出牌";
+  } else {
+    button.textContent = "對手回合";
+    button.disabled = true;
+  }
+}

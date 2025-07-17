@@ -1,10 +1,12 @@
-// /src/main.js
+// src/main.js
 import { createGameState } from './engine/game_state.js';
 import { render } from './ui/ui.js';
 import { simulateAtBat } from './engine/sim.js';
 
+// 創建 state
 const state = createGameState();
-initDecks();
+render(state, handlers);
+
 
 render(state, {
   select: idx => { state.selected = idx; render(state, handlers); },
@@ -77,30 +79,30 @@ function playTurn() {
 }
 
 function processAtBatOutcome(result, card) {
-  document.getElementById('outcome-text').textContent = result.description;
-  let pointsScored = 0;
+    document.getElementById('outcome-text').textContent = result.description;
+    let pointsScored = 0;
 
-  if (result.type === 'K' || result.type === 'OUT') {
-    state.outs++;
-  } else {
-    switch (result.type) {
-      case 'HR': pointsScored = state.cfg.scoring.homeRun; break;
-      case '3B': pointsScored = state.cfg.scoring.triple; break;
-      case '2B': pointsScored = state.cfg.scoring.double; break;
-      case '1B': pointsScored = state.cfg.scoring.single; break;
-      case 'BB': pointsScored = 0; break;
-    }
-    const scoreUpdate = state.half === 'top'
-      ? { away: state.score.away + pointsScored }
-      : { home: state.score.home + pointsScored };
-    state.score = { ...state.score, ...scoreUpdate };
+    if (result.type === 'K' || result.type === 'OUT') {
+        state.outs++;
+    } else {
+        // 根據結果類型計算分數
+        switch (result.type) {
+            case 'HR': pointsScored = state.cfg.scoring.homeRun; break;
+            case '3B': pointsScored = state.cfg.scoring.triple; break;
+            case '2B': pointsScored = state.cfg.scoring.double; break;
+            case '1B': pointsScored = state.cfg.scoring.single; break;
+        }
+        
+        // 更新分數 (此處為簡化邏輯，你的版本可能有更複雜的跑者推進計分)
+        const currentScorer = state.half === 'top' ? 'away' : 'home';
+        state.score[currentScorer] += pointsScored;
 
-    // Update bases
-    state.bases = [null, null, null];
-    if (result.adv > 0 && result.adv < 4) {
-      state.bases[result.adv - 1] = card;
+        // 更新壘包 (簡化邏輯：只顯示打者)
+        state.bases = [null, null, null];
+        if (result.adv > 0 && result.adv < 4) {
+            state.bases[result.adv - 1] = card;
+        }
     }
-  }
 }
 
 function changeHalfInning() {
@@ -161,26 +163,51 @@ function simulateCpuTurn() {
   }, 750);
 }
 
-function draw(p, n) {
-  // Apply Anaxagoras' death effect if active
-  const anaxagorasEffect = state.activeEffects.find(e => e.cardName === "Anaxagoras" && e.type === "death");
-  const drawCount = anaxagorasEffect && state.half === 'top' ? n + anaxagorasEffect.value : n;
-  while (p.hand.length < drawCount && p.deck.length) {
-    p.hand.push(p.deck.pop());
-  }
-  if (anaxagorasEffect && state.half === 'top') {
-    state.activeEffects = state.activeEffects.filter(e => e.cardName !== "Anaxagoras");
-  }
-}
-
-function shuffle(a) {
-  for (let i = a.length - 1; i > 0; i--) {
-    const j = Math.random() * (i + 1) | 0;
-    [a[i], a[j]] = [a[j], a[i]];
+function draw(player, numToDraw) {
+  for (let i = 0; i < numToDraw; i++) {
+    if (player.deck.length === 0) {
+      if (player.discard.length === 0) return; // 沒牌可抽了
+      // 重洗棄牌堆
+      player.deck = [...player.discard];
+      player.discard = [];
+      shuffle(player.deck);
+    }
+    if (player.hand.length < player.team.handSize && player.deck.length > 0) {
+      player.hand.push(player.deck.pop());
+    }
   }
 }
 
+function shuffle(deck) {
+  for (let i = deck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deck[i], deck[j]] = [deck[j], deck[i]];
+  }
+}
+
+// 定義 handlers
 const handlers = {
-  select: idx => { state.selected = idx; render(state, handlers); },
-  button: () => playTurn(),
+  select: (idx) => {
+    // 只有在玩家回合才能選擇
+    if (state.playerTurn) {
+      state.selected = (state.selected === idx) ? -1 : idx; // 點擊已選中的卡牌可取消選擇
+      render(state, handlers);
+    }
+  },
+  button: () => {
+    if (state.over || !state.playerTurn) return;
+    
+    // 如果按鈕是 Play Ball (遊戲開始)
+    if (!state.cpu.activePitcher) { 
+        initDecks();
+        document.getElementById('outcome-text').textContent = "輪到你打擊！";
+        render(state, handlers);
+        return;
+    }
+    
+    // 如果是確認出牌
+    if (state.selected !== -1) {
+      playTurn();
+    }
+  },
 };
