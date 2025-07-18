@@ -8,380 +8,54 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     <style>
-        body { 
-            font-family: 'Inter', sans-serif; 
-            background: #1a2a3a; 
-            color: #f0f8ff; 
-            overflow: hidden; 
-            height: 100vh; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            margin: 0;
-        }
-        .game-container { 
-            width: 100%; 
-            height: 100%; 
-            max-width: 1400px; 
-            max-height: 900px; 
-            display: flex; 
-            flex-direction: column; 
-            background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); 
-            border-radius: 20px; 
-            box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); 
-            border: 2px solid #4a5a6a; 
-        }
-        .card { 
-            width: 120px; 
-            height: 170px; 
-            background: #2c3e50; 
-            border: 2px solid #7f8c8d; 
-            border-radius: 10px; 
-            padding: 0.5rem; 
-            display: flex; 
-            flex-direction: column; 
-            justify-content: space-between; 
-            transition: all 0.3s ease; 
-            position: relative; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
-            cursor: pointer; 
-        }
-        .card-name { 
-            font-weight: 700; 
-            font-size: 0.9rem; 
-            text-align: center; 
-            margin-bottom: 0.3rem; 
-        }
-        .card-ovr { 
-            position: absolute; 
-            top: 5px; 
-            right: 5px; 
-            font-size: 0.8rem; 
-            font-weight: bold; 
-            background-color: rgba(0,0,0,0.7); 
-            padding: 2px 5px; 
-            border-radius: 5px; 
-            color: #ffd700; 
-        }
-        .card-stats { 
-            font-size: 0.7rem; 
-            text-align: center; 
-            font-family: 'Roboto Mono', monospace; 
-            margin-bottom: 0.3rem; 
-        }
-        .card-description { 
-            font-size: 0.65rem; 
-            text-align: center; 
-            color: #bdc3c7; 
-            font-style: italic; 
-            line-height: 1.2; 
-        }
-        .top-bar { 
-            padding: 1rem; 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: center; 
-        }
-        /* Pitcher positioning fix - symmetric layout */
-        .pitcher-container {
-            display: flex;
-            justify-content: space-between;
-            align-items: flex-end;
-            width: 100%;
-            padding: 0 2rem;
-            position: absolute;
-            bottom: 20px;
-            left: 0;
-            right: 0;
-        }
-        #cpu-pitcher-area .card { 
-            border-color: #e74c3c; 
-        }
-        #cpu-pitcher-area .card-name { 
-            color: #ffcdd2; 
-        }
-        #player-pitcher-area .card { 
-            border-color: #3498db; 
-        }
-        #player-pitcher-area .card-name { 
-            color: #cde7ff; 
-        }
-        .score-display { 
-            font-size: 3rem; 
-            font-weight: 700; 
-            font-family: 'Roboto Mono', monospace; 
-            color: #ffffff; 
-            background-color: rgba(0,0,0,0.3); 
-            padding: 0.5rem 2rem; 
-            border-radius: 10px; 
-            border: 1px solid #4a5a6a; 
-        }
-        .team-indicator { 
-            font-size: 0.8rem; 
-            font-weight: 600; 
-            margin-bottom: 0.2rem; 
-        }
-        .team-indicator.away { 
-            color: #e74c3c; 
-        }
-        .team-indicator.home { 
-            color: #3498db; 
-        }
-        .game-state-display { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: flex-end; 
-            gap: 0.5rem; 
-        }
-        .outs-display { 
-            display: flex; 
-            gap: 0.75rem; 
-        }
-        .out-light { 
-            width: 20px; 
-            height: 20px; 
-            border-radius: 50%; 
-            background-color: #3a4a5a; 
-            border: 2px solid #5a6a7a; 
-            transition: all 0.3s ease; 
-        }
-        .out-light.active { 
-            background-color: #e74c3c; 
-            box-shadow: 0 0 10px #e74c3c; 
-        }
-        .inning-display { 
-            font-size: 1.5rem; 
-            font-weight: 600; 
-            color: #bdc3c7; 
-        }
-        .inning-indicator.top::before { 
-            content: '▲'; 
-            color: #3498db; 
-        }
-        .inning-indicator.bottom::before { 
-            content: '▼'; 
-            color: #e67e22; 
-        }
-        .field { 
-            flex-grow: 1; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            position: relative; 
-        }
-        /* Improved diamond layout */
-        .diamond { 
-            width: 350px; 
-            height: 350px; 
-            transform: rotate(45deg); 
-            position: relative; 
-        }
-        .base { 
-            width: 60px; 
-            height: 60px; 
-            background-color: rgba(255, 255, 255, 0.1); 
-            border: 3px solid #7f8c8d; 
-            position: absolute; 
-            transition: all 0.3s ease; 
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            cursor: pointer;
-        }
-        .base:hover {
-            transform: scale(1.1);
-            border-color: #f1c40f;
-        }
-        .base.occupied { 
-            background-color: #f1c40f; 
-            border-color: #f39c12; 
-            box-shadow: 0 0 20px #f1c40f; 
-        }
-        .base-label {
-            transform: rotate(-45deg);
-            font-weight: bold;
-            font-size: 14px;
-            color: #fff;
-        }
-        #home-plate { 
-            bottom: -30px; 
-            left: 50%; 
-            transform: translateX(-50%) rotate(-45deg); 
-            width: 60px; 
-            height: 60px; 
-            background-color: #bdc3c7; 
-            clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 100%, 0 50%); 
-        }
-        #first-base { 
-            top: 50%; 
-            right: -30px; 
-            transform: translateY(-50%) rotate(-45deg); 
-        }
-        #second-base { 
-            top: -30px; 
-            left: 50%; 
-            transform: translateX(-50%) rotate(-45deg); 
-        }
-        #third-base { 
-            top: 50%; 
-            left: -30px; 
-            transform: translateY(-50%) rotate(-45deg); 
-        }
-        /* Aura effects display */
-        .aura-effects-container {
-            position: absolute;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 80%;
-            max-width: 600px;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            pointer-events: none;
-        }
-        .aura-effect {
-            background: rgba(0, 0, 0, 0.8);
-            border: 2px solid #ffd700;
-            border-radius: 8px;
-            padding: 10px 20px;
-            font-size: 14px;
-            text-align: center;
-            animation: fadeIn 0.5s ease;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-        }
-        .aura-effect.buff {
-            border-color: #2ecc71;
-            color: #2ecc71;
-        }
-        .aura-effect.debuff {
-            border-color: #e74c3c;
-            color: #e74c3c;
-        }
-        .aura-effect-icon {
-            font-size: 20px;
-        }
-        @keyframes fadeIn {
-            from { 
-                opacity: 0; 
-                transform: translateY(-10px);
-            }
-            to { 
-                opacity: 1; 
-                transform: translateY(0);
-            }
-        }
-        .action-area { 
-            padding: 1rem; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-        }
-        .main-button { 
-            padding: 1rem 3rem; 
-            font-size: 1.5rem; 
-            font-weight: 700; 
-            color: white; 
-            background: linear-gradient(145deg, #3498db, #2980b9); 
-            border: none; 
-            border-radius: 15px; 
-            cursor: pointer; 
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); 
-            transition: all 0.2s ease-in-out; 
-        }
-        .main-button:hover:not(:disabled) { 
-            transform: translateY(-2px); 
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); 
-        }
-        .main-button:active:not(:disabled) { 
-            transform: translateY(1px); 
-            box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); 
-        }
-        .main-button:disabled { 
-            background: #7f8c8d; 
-            cursor: not-allowed; 
-        }
-        .bottom-area { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-end; 
-            padding: 1.5rem; 
-            background-color: rgba(0, 0, 0, 0.2); 
-            border-top: 1px solid #4a5a6a; 
-        }
-        .hand { 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            gap: 1rem; 
-            min-height: 180px; 
-        }
-        .hand .card { 
-            cursor: pointer; 
-        }
-        .hand .card:hover { 
-            transform: translateY(-15px) scale(1.05); 
-            border-color: #f1c40f; 
-        }
-        .hand .card.selected { 
-            transform: translateY(-25px) scale(1.1); 
-            border-color: #2ecc71; 
-            box-shadow: 0 0 20px #2ecc71; 
-        }
-        .hand .card.effect-active { 
-            border-color: #9b59b6; 
-            box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); 
-        }
-        .hand .card.effect-active::after { 
-            content: '✨'; 
-            position: absolute; 
-            top: -5px; 
-            left: -5px; 
-            font-size: 1rem; 
-        }
-        .deck-area { 
-            text-align: center; 
-        }
-        .deck-area .card { 
-            background: #1a2a3a; 
-            border-style: dashed; 
-            cursor: default; 
-        }
-        .deck-area p { 
-            margin-top: 0.5rem; 
-            font-weight: 600; 
-            font-family: 'Roboto Mono', monospace; 
-        }
-        .action-card { 
-            border-color: #8e44ad; 
-            background: #3a2a4a; 
-        }
-        .action-card .card-name { 
-            color: #c593e0; 
-        }
-        .pitcher-area { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: center; 
-            gap: 0.5rem; 
-        }
-        #outcome-text { 
-            position: absolute; 
-            bottom: 100px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            font-size: 1.2rem; 
-            font-weight: 600; 
-            color: #f39c12; 
-            text-align: center; 
-            background: rgba(0,0,0,0.7); 
-            padding: 0.5rem 1rem; 
-            border-radius: 8px; 
-            min-width: 300px;
-        }
+        body { font-family: 'Inter', sans-serif; background: #1a2a3a; color: #f0f8ff; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        .game-container { width: 100%; height: 100%; max-width: 1200px; max-height: 900px; display: flex; flex-direction: column; background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); border-radius: 20px; box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); border: 2px solid #4a5a6a; }
+        .card { width: 120px; height: 170px; background: #2c3e50; border: 2px solid #7f8c8d; border-radius: 10px; padding: 0.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease; position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; }
+        .card-name { font-weight: 700; font-size: 0.9rem; text-align: center; margin-bottom: 0.3rem; }
+        .card-ovr { position: absolute; top: 5px; right: 5px; font-size: 0.8rem; font-weight: bold; background-color: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 5px; color: #ffd700; }
+        .card-stats { font-size: 0.7rem; text-align: center; font-family: 'Roboto Mono', monospace; margin-bottom: 0.3rem; }
+        .card-description { font-size: 0.65rem; text-align: center; color: #bdc3c7; font-style: italic; line-height: 1.2; }
+        .top-bar { padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
+        #cpu-pitcher-area .card { border-color: #e74c3c; }
+        #cpu-pitcher-area .card-name { color: #ffcdd2; }
+        #player-pitcher-area .card { border-color: #3498db; }
+        #player-pitcher-area .card-name { color: #cde7ff; }
+        .score-display { font-size: 3rem; font-weight: 700; font-family: 'Roboto Mono', monospace; color: #ffffff; background-color: rgba(0,0,0,0.3); padding: 0.5rem 2rem; border-radius: 10px; border: 1px solid #4a5a6a; }
+        .team-indicator { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.2rem; }
+        .team-indicator.away { color: #e74c3c; }
+        .team-indicator.home { color: #3498db; }
+        .game-state-display { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
+        .outs-display { display: flex; gap: 0.75rem; }
+        .out-light { width: 20px; height: 20px; border-radius: 50%; background-color: #3a4a5a; border: 2px solid #5a6a7a; transition: all 0.3s ease; }
+        .out-light.active { background-color: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
+        .inning-display { font-size: 1.5rem; font-weight: 600; color: #bdc3c7; }
+        .inning-indicator.top::before { content: '▲'; color: #3498db; }
+        .inning-indicator.bottom::before { content: '▼'; color: #e67e22; }
+        .field { flex-grow: 1; display: flex; justify-content: center; align-items: center; position: relative; }
+        /* --- NEW: Parallel Bases --- */
+        .bases-container { display: flex; gap: 20px; position: absolute; top: 40%; }
+        .base { width: 50px; height: 50px; background-color: rgba(255, 255, 255, 0.1); border: 2px solid #7f8c8d; transition: all 0.3s ease; font-family: 'Roboto Mono', monospace; display: flex; align-items: center; justify-content: center; color: #7f8c8d }
+        .base.occupied { background-color: #f1c40f; border-color: #f39c12; box-shadow: 0 0 15px #f1c40f; color: #000; }
+        .action-area { padding: 1rem; display: flex; justify-content: center; align-items: center; }
+        .main-button { padding: 1rem 3rem; font-size: 1.5rem; font-weight: 700; color: white; background: linear-gradient(145deg, #3498db, #2980b9); border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); transition: all 0.2s ease-in-out; }
+        .main-button:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4); }
+        .main-button:active:not(:disabled) { transform: translateY(1px); box-shadow: 0 3px 10px rgba(0, 0, 0, 0.3); }
+        .main-button:disabled { background: #7f8c8d; cursor: not-allowed; }
+        .bottom-area { display: flex; justify-content: space-between; align-items: flex-end; padding: 1.5rem; background-color: rgba(0, 0, 0, 0.2); border-top: 1px solid #4a5a6a; }
+        .hand { display: flex; justify-content: center; align-items: center; gap: 1rem; min-height: 180px; }
+        .hand .card { cursor: pointer; }
+        .hand .card:hover { transform: translateY(-15px) scale(1.05); border-color: #f1c40f; }
+        .hand .card.selected { transform: translateY(-25px) scale(1.1); border-color: #2ecc71; box-shadow: 0 0 20px #2ecc71; }
+        .hand .card.effect-active { border-color: #9b59b6; box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); animation: pulse 1.5s forwards; }
+        @keyframes pulse { 0% { box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); } 100% { box-shadow: none; } }
+        .hand .card.effect-active::after { content: '✨'; position: absolute; top: -5px; left: -5px; font-size: 1rem; }
+        .deck-area { text-align: center; }
+        .deck-area .card { background: #1a2a3a; border-style: dashed; cursor: default; }
+        .deck-area p { margin-top: 0.5rem; font-weight: 600; font-family: 'Roboto Mono', monospace; }
+        .action-card { border-color: #8e44ad; background: #3a2a4a; }
+        .action-card .card-name { color: #c593e0; }
+        .pitcher-area { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+        #outcome-text { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 1.2rem; font-weight: 600; color: #f39c12; text-align: center; background: rgba(0,0,0,0.7); padding: 0.5rem 1rem; border-radius: 8px; }
     </style>
 </head>
 <body>
@@ -406,29 +80,21 @@
             </div>
         </div>
         <div class="field">
-            <div class="diamond">
-                <div id="home-plate"><span class="base-label">H</span></div>
-                <div id="first-base" class="base"><span class="base-label">1B</span></div>
-                <div id="second-base" class="base"><span class="base-label">2B</span></div>
-                <div id="third-base" class="base"><span class="base-label">3B</span></div>
+            <div class="bases-container">
+                <div id="third-base" class="base">3B</div>
+                <div id="second-base" class="base">2B</div>
+                <div id="first-base" class="base">1B</div>
             </div>
-            <div class="aura-effects-container" id="aura-effects"></div>
             <div id="outcome-text"></div>
-            
-            <!-- Pitcher container for symmetric positioning -->
-            <div class="pitcher-container">
-                <div class="pitcher-area">
-                    <div id="cpu-pitcher-display"></div>
-                </div>
-                <div class="pitcher-area">
-                    <div id="player-pitcher-display"></div>
-                </div>
-            </div>
         </div>
         <div class="action-area">
             <button id="main-button" class="main-button">Play Ball</button>
         </div>
         <div class="bottom-area">
+            <div class="pitcher-area">
+                <div class="team-indicator home">主隊投手</div>
+                <div id="player-pitcher-area"></div>
+            </div>
             <div id="player-deck-area" class="deck-area">
                 <div class="card"></div>
                 <p>牌庫: <span id="player-deck-count">0</span></p>

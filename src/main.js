@@ -184,22 +184,32 @@ function processAtBatOutcome(result, card) {
   }
 }
 
+// ... (main.js 的其他部分保持不變) ...
+
 /**
- * Change sides
+ * Change sides and handle "soft reset" of bases
  */
 function changeHalfInning() {
-  // Reset state
+  // --- NEW: Soft reset logic for bases ---
+  // Find the most advanced runner and remove them
+  let removedRunner = false;
+  for (let i = 2; i >= 0; i--) {
+      if (state.bases[i]) {
+          state.bases[i] = null;
+          removedRunner = true;
+          break; // Only remove one runner
+      }
+  }
+
+  // Reset outs and inning-specific effects
   state.outs = 0;
-  state.bases = [null, null, null];
   state.activeEffects = state.activeEffects.filter(e => e.duration !== "inning");
 
   if (state.half === 'top') {
-    // Switch to HOME team batting (player)
     state.half = 'bottom';
     state.playerTurn = true;
     document.getElementById('outcome-text').textContent = "輪到主隊打擊！";
   } else {
-    // Switch to AWAY team batting (CPU)
     state.half = 'top';
     state.currentInning++;
     state.playerTurn = false;
@@ -219,6 +229,9 @@ function changeHalfInning() {
 
   render(state, handlers);
 }
+
+
+// ... (main.js 的其他部分保持不變) ...
 
 /**
  * Simulate CPU's complete turn with proper scoring
