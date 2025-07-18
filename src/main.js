@@ -100,57 +100,60 @@ function runPlayerTurn() {
 }
 
 /**
- * --- COMPLETELY REVISED ---
- * Process at-bat outcome, update score based on custom rules, and advance runners.
+ * REVISED: Process at-bat outcome, update score based on custom rules, and advance runners.
  * @param {object} result - Simulation result
- * @param {object} card - Batting card
+ * @param {object} batterCard - The card of the batter
  */
-function processAtBatOutcome(result, card) {
+function processAtBatOutcome(result, batterCard) {
   document.getElementById('outcome-text').textContent = result.description;
   const currentScorer = state.half === 'top' ? 'away' : 'home';
 
   if (result.type === 'K' || result.type === 'OUT') {
     state.outs++;
-    processCardEffects(card, 'death', state);
+    processCardEffects(batterCard, 'death', state);
   } else {
-    // --- NEW SCORING LOGIC ---
+    // --- CORRECTED SCORING LOGIC ---
     let points = 0;
     switch (result.type) {
-        case '1B': points = CONFIG.scoring.single; break;
-        case '2B': points = CONFIG.scoring.double; break;
-        case '3B': points = CONFIG.scoring.triple; break;
-        case 'HR': points = CONFIG.scoring.homeRun; break;
+      case '1B': points = CONFIG.scoring.single; break;
+      case '2B': points = CONFIG.scoring.double; break;
+      case '3B': points = CONFIG.scoring.triple; break;
+      case 'HR': points = CONFIG.scoring.homeRun; break;
+      case 'BB': points = CONFIG.scoring.single; break; // Walk counts as a single for points
     }
     state.score[currentScorer] += points;
 
-    // --- NEW RUNNER ADVANCEMENT LOGIC ---
-    processCardEffects(card, 'aura', state);
-    processCardEffects(card, 'synergy', state);
+    // --- CORRECTED RUNNER ADVANCEMENT ---
+    processCardEffects(batterCard, 'aura', state);
+    processCardEffects(batterCard, 'synergy', state);
 
-    const runners = [card, ...state.bases.filter(Boolean)]; // Batter is now a runner
-    state.bases = [null, null, null]; // Clear bases before placing runners
+    // Create a new array of runners on base, from furthest to closest
+    const runnersOnBase = [];
+    for (let i = 2; i >= 0; i--) {
+        if (state.bases[i]) {
+            runnersOnBase.push({ runner: state.bases[i], fromBase: i });
+        }
+    }
+    
+    state.bases = [null, null, null]; // Clear bases to reposition everyone
 
-    if (result.type === 'HR') {
-        // Home run clears the bases, no need to place anyone.
-    } else {
-        const adv = result.adv || 0;
-        runners.forEach(runner => {
-            const currentBase = (runner === card) ? -1 : state.bases.indexOf(runner);
-            const newBaseIndex = currentBase + adv;
-            if (newBaseIndex < 3) {
-                // If the new base is empty or the runner is the batter, place them.
-                if (!state.bases[newBaseIndex] || runner === card) {
-                    state.bases[newBaseIndex] = runner;
-                } else {
-                    // Simple logic: if base is occupied, push to the next one.
-                    if (newBaseIndex + 1 < 3) state.bases[newBaseIndex + 1] = runner;
-                }
-            }
-            // Note: In this custom scoring, runners reaching home do not add extra points.
-        });
-        // Place the batter on their new base
-        if (adv > 0 && adv < 4) {
-            state.bases[adv - 1] = card;
+    // Advance existing runners first
+    runnersOnBase.forEach(r => {
+        const newBaseIndex = r.fromBase + result.adv;
+        if (newBaseIndex < 3) {
+            state.bases[newBaseIndex] = r.runner;
+        }
+    });
+
+    // Place the batter
+    if (result.adv > 0 && result.adv < 4) {
+        const batterBaseIndex = result.adv - 1;
+        // If the base is occupied by a previous runner who just moved there, push the batter.
+        // This is a simple fix for multiple runners ending on the same base.
+        if (state.bases[batterBaseIndex]) {
+             if (batterBaseIndex + 1 < 3) state.bases[batterBaseIndex + 1] = batterCard;
+        } else {
+            state.bases[batterBaseIndex] = batterCard;
         }
     }
   }
