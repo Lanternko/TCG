@@ -1,443 +1,313 @@
-// src/main.js - 更新的主遊戲邏輯
-import { createGameState, initializeMyGOTeam, checkGameEnd, resetGameState } from './engine/game_state.js';
-import { render } from './ui/ui.js';
-import { 
-  simulateAtBat, 
-  processCardEffects, 
-  applyActionCard, 
-  initializeEffectProcessor,
-  updateAuraEffects,
-  cleanupExpiredEffects
-} from './engine/sim.js';
-import { CONFIG } from './data/config.js';
+// src/main.js - 簡化版本，專門用於測試和除錯
+console.log('🎮 MyGO!!!!! TCG 主檔案載入中...');
 
-// =============================================================================
-// 1. Initialize game state and event handlers
-// =============================================================================
+// 嘗試載入所有必要的模組
+let CONFIG, TEAMS, createGameState, render;
+let gameInitialized = false;
 
-const state = createGameState();
-let effectProcessor = null;
-
-const handlers = {
-  /**
-   * Handle card selection events
-   * @param {number} idx - Index of clicked card
-   */
-  select: (idx) => {
-    if (state.playerTurn) {
-      // If clicking on already selected card, deselect; otherwise, select new card
-      state.selected = (state.selected === idx) ? -1 : idx;
-      render(state, handlers); // Immediately redraw after each selection to update 'selected' styling
-    }
-  },
-  
-  /**
-   * Handle main button click events
-   */
-  button: () => {
-    const gameStarted = !!state.cpu.activePitcher;
-
-    if (!gameStarted) {
-      // If game hasn't started, initialize decks
-      initDecks();
-    } else if (state.playerTurn && state.selected !== -1) {
-      // If it's player turn and a card is selected, execute player turn
-      runPlayerTurn();
-    }
+async function initializeGame() {
+  try {
+    console.log('📦 開始載入遊戲模組...');
     
-    // Redraw entire screen after each main button click based on latest state
-    render(state, handlers);
-  },
-  
-  /**
-   * 重新開始遊戲
-   */
-  restart: () => {
-    resetGameState(state);
-    initDecks();
-    render(state, handlers);
-  },
-  
-  /**
-   * 切換隊伍（開發用）
-   */
-  switchTeam: (teamId) => {
-    if (!state.over) {
-      console.log(`切換隊伍到: ${teamId}`);
-      // 這裡可以實作隊伍切換邏輯
-    }
-  }
-};
-
-// =============================================================================
-// 2. Core game flow functions
-// =============================================================================
-
-/**
- * Initialize all decks, hands, and pitchers
- */
-function initDecks() {
-  console.log("🎯 初始化遊戲...");
-  
-  // Initialize effect processor
-  effectProcessor = initializeEffectProcessor(state);
-  
-  // Initialize player (HOME team) - 現在預設是MyGO!!!!!
-  const playerTeam = state.player.team;
-  console.log(`🏠 主隊: ${playerTeam.name} (${playerTeam.id})`);
-  
-  // 準備玩家牌組（打者 + 戰術卡）
-  state.player.deck = [...playerTeam.batters, ...playerTeam.actionCards].map(prepareCard);
-  shuffle(state.player.deck);
-  state.player.hand = [];
-  state.player.pitcher = prepareCard(playerTeam.pitchers[0]); // Set player pitcher
-  
-  // 如果是MyGO隊伍，執行特殊初始化
-  if (playerTeam.id === "MGO") {
-    initializeMyGOTeam(state);
-  }
-  
-  draw(state.player, state.cfg.handSize);
-  console.log(`🎸 主隊牌組: ${state.player.deck.length}張牌, 手牌: ${state.player.hand.length}張`);
-
-  // Initialize CPU (AWAY team)
-  const cpuTeam = state.cpu.team;
-  console.log(`🏃 客隊: ${cpuTeam.name} (${cpuTeam.id})`);
-  
-  state.cpu.deck = [...cpuTeam.batters].map(prepareCard);
-  state.cpu.activePitcher = prepareCard(cpuTeam.pitchers[0]);
-  console.log(`⚾ 客隊牌組: ${state.cpu.deck.length}張牌`);
-  
-  // 初始化光環效果
-  updateAuraEffects(state);
-  
-  document.getElementById('outcome-text').textContent = "🎵 MyGO!!!!! vs Yankees - 客隊先攻！";
-  
-  // Start CPU turn (away team bats first)
-  setTimeout(() => {
-    runCpuTurn();
-  }, 1000);
-}
-
-/**
- * Execute a complete player turn
- */
-function runPlayerTurn() {
-  const card = state.player.hand[state.selected];
-  if (!card) return;
-  
-  console.log(`🎯 玩家打出: ${card.name} (${card.type})`);
-  state.gameStats.cardsPlayed++;
-  
-  let outcomeDescription = "";
-  
-  if (card.type === 'batter') {
-    // 處理打者卡
-    state.gameStats.playerAtBats++;
+    // 載入配置
+    const configModule = await import('./data/config.js');
+    CONFIG = configModule.CONFIG;
+    console.log('✅ Config 載入成功');
     
-    // 觸發登場效果
-    const playResult = processCardEffects(card, 'play', state);
-    if (playResult.success) {
-      console.log(`✨ 登場效果: ${playResult.description}`);
-      state.gameStats.effectsTriggered++;
-    }
+    // 載入隊伍資料
+    const teamsModule = await import('./data/teams.js');
+    TEAMS = teamsModule.TEAMS;
+    console.log('✅ Teams 載入成功:', TEAMS.length, '個隊伍');
     
-    // 進行打擊模擬
-    const result = simulateAtBat(card, state.cpu.activePitcher, state);
-    processAtBatOutcome(result, card);
-    outcomeDescription = result.description;
+    // 載入遊戲狀態
+    const gameStateModule = await import('./engine/game_state.js');
+    createGameState = gameStateModule.createGameState;
+    console.log('✅ Game State 載入成功');
     
-  } else if (card.type === 'action') {
-    // 處理戰術卡
-    console.log(`🎭 使用戰術卡: ${card.name}`);
-    outcomeDescription = applyActionCard(card, state);
-    state.gameStats.effectsTriggered++;
-  }
-  
-  // 移除卡牌並抽新牌
-  state.player.hand.splice(state.selected, 1);
-  state.player.discard.push(card);
-  draw(state.player, 1);
-  state.selected = -1;
-  
-  // 清理回合結束的效果
-  cleanupExpiredEffects(state, 'atBat');
-  
-  // 更新光環效果
-  updateAuraEffects(state);
-  
-  // 顯示結果
-  document.getElementById('outcome-text').textContent = outcomeDescription;
-  render(state, handlers);
-  
-  // 檢查三出局
-  if (state.outs >= 3) {
-    setTimeout(changeHalfInning, 1500);
+    // 載入UI
+    const uiModule = await import('./ui/ui.js');
+    render = uiModule.render;
+    console.log('✅ UI 載入成功');
+    
+    // 初始化遊戲
+    startGame();
+    
+  } catch (error) {
+    console.error('❌ 模組載入失敗:', error);
+    showErrorMessage(`載入失敗: ${error.message}`);
   }
 }
 
-/**
- * Process at-bat outcome and update game state
- */
-function processAtBatOutcome(result, batterCard) {
-  console.log(`📊 打擊結果: ${result.type} - ${result.description}`);
-  
-  const currentScorer = state.half === 'top' ? 'away' : 'home';
-
-  if (result.type === 'K' || result.type === 'OUT') {
-    state.outs++;
+function startGame() {
+  try {
+    console.log('🎯 開始初始化遊戲...');
     
-    // 觸發退場效果
-    const deathResult = processCardEffects(batterCard, 'death', state);
-    if (deathResult.success) {
-      console.log(`💀 退場效果: ${deathResult.description}`);
-      state.gameStats.effectsTriggered++;
+    // 創建遊戲狀態
+    const state = createGameState();
+    console.log('✅ 遊戲狀態創建成功');
+    
+    // 確保MyGO隊伍存在
+    const mygoTeam = TEAMS.find(team => team.id === "MGO");
+    if (!mygoTeam) {
+      throw new Error('找不到MyGO隊伍資料');
     }
     
-  } else {
-    // 成功上壘，計算得分
-    let points = 0;
-    switch (result.type) {
-      case '1B': points = CONFIG.scoring.single; break;
-      case '2B': points = CONFIG.scoring.double; break;
-      case '3B': points = CONFIG.scoring.triple; break;
-      case 'HR': points = CONFIG.scoring.homeRun; break;
-      case 'BB': points = CONFIG.scoring.single; break;
-    }
-    state.score[currentScorer] += points;
+    console.log('✅ MyGO隊伍確認:', mygoTeam.name);
+    console.log('  - 打者:', mygoTeam.batters.length, '名');
+    console.log('  - 投手:', mygoTeam.pitchers.length, '名'); 
+    console.log('  - 戰術卡:', mygoTeam.actionCards.length, '張');
     
-    // 觸發光環和協同效果
-    processCardEffects(batterCard, 'aura', state);
-    processCardEffects(batterCard, 'synergy', state);
-    
-    // 處理跑者推進
-    advanceRunners(result, batterCard);
-    
-    console.log(`🏃 跑者推進: ${result.adv}個壘包, 得分: ${points}`);
-  }
-  
-  // 檢查特殊狀態
-  checkSpecialStates();
-}
-
-/**
- * 處理跑者推進邏輯
- */
-function advanceRunners(result, batterCard) {
-  if (!result.adv || result.adv <= 0) return;
-  
-  // 收集現有跑者
-  const existingRunners = [];
-  for (let i = 2; i >= 0; i--) {
-    if (state.bases[i] && !state.bases[i].locked) {
-      existingRunners.push({ runner: state.bases[i], fromBase: i });
-    }
-  }
-  
-  // 清空壘包（保留鎖定的角色）
-  for (let i = 0; i < 3; i++) {
-    if (state.bases[i] && !state.bases[i].locked) {
-      state.bases[i] = null;
-    }
-  }
-  
-  // 推進現有跑者
-  existingRunners.forEach(({ runner, fromBase }) => {
-    const newBaseIndex = fromBase + result.adv;
-    if (newBaseIndex < 3) {
-      // 找到空的壘包
-      for (let i = newBaseIndex; i < 3; i++) {
-        if (!state.bases[i]) {
-          state.bases[i] = runner;
-          break;
+    // 設置事件處理器
+    const handlers = {
+      select: (idx) => {
+        console.log('🎯 選擇卡牌:', idx);
+        if (state.playerTurn) {
+          state.selected = (state.selected === idx) ? -1 : idx;
+          render(state, handlers);
         }
-      }
-    }
-    // 如果newBaseIndex >= 3，跑者得分（已在上面計算）
-  });
-  
-  // 放置打者
-  if (result.adv > 0 && result.adv < 4) {
-    const batterBaseIndex = result.adv - 1;
-    if (!state.bases[batterBaseIndex]) {
-      state.bases[batterBaseIndex] = batterCard;
-    } else {
-      // 如果該壘包被佔用，嘗試放到下一個壘包
-      for (let i = batterBaseIndex + 1; i < 3; i++) {
-        if (!state.bases[i]) {
-          state.bases[i] = batterCard;
-          break;
+      },
+      
+      button: () => {
+        console.log('🎯 按鈕點擊');
+        const gameStarted = !!state.cpu.activePitcher;
+        
+        if (!gameStarted) {
+          initDecks(state);
+        } else if (state.playerTurn && state.selected !== -1) {
+          runPlayerTurn(state);
         }
+        
+        render(state, handlers);
       }
+    };
+    
+    // 執行初始渲染
+    render(state, handlers);
+    
+    // 更新按鈕事件
+    const mainButton = document.getElementById('main-button');
+    if (mainButton) {
+      mainButton.onclick = handlers.button;
     }
+    
+    console.log('🎉 遊戲初始化完成！');
+    gameInitialized = true;
+    
+    // 顯示成功訊息
+    const outcomeText = document.getElementById('outcome-text');
+    if (outcomeText) {
+      outcomeText.textContent = '🎸 MyGO!!!!! 準備就緒！點擊 Play Ball 開始遊戲！';
+    }
+    
+  } catch (error) {
+    console.error('❌ 遊戲初始化失敗:', error);
+    showErrorMessage(`初始化失敗: ${error.message}`);
   }
 }
 
-/**
- * 檢查特殊狀態和條件
- */
-function checkSpecialStates() {
-  if (state.mygoInitialized) {
-    // 檢查MyGO!!!!!團隊協同
-    const mygoOnBase = state.bases.filter(card => card && card.band === 'MyGO!!!!!').length;
-    if (mygoOnBase >= 3) {
-      console.log(`🎵 MyGO!!!!!團隊協同啟動！(${mygoOnBase}人在壘)`);
-    }
+function initDecks(state) {
+  try {
+    console.log('🎯 初始化牌組...');
     
-    // 檢查Ave Mujica威壓
-    const mujicaOnBase = state.bases.filter(card => card && card.band === 'Mujica').length;
-    if (mujicaOnBase >= 3) {
-      console.log(`🖤 Ave Mujica威壓啟動！(${mujicaOnBase}人在壘)`);
-    }
+    // 準備玩家牌組 (MyGO)
+    const playerTeam = TEAMS.find(team => team.id === "MGO");
+    state.player.team = playerTeam;
+    state.player.deck = [...playerTeam.batters, ...playerTeam.actionCards].map(prepareCard);
+    shuffle(state.player.deck);
+    state.player.hand = [];
+    state.player.pitcher = prepareCard(playerTeam.pitchers[0]);
     
-    // 檢查樂器協同
-    const guitarists = state.bases.filter(card => card && card.instrument && card.instrument.includes('Guitar')).length;
-    if (guitarists >= 2) {
-      console.log(`🎸 吉他協奏啟動！(${guitarists}人)`);
-    }
-  }
-}
-
-/**
- * Change sides and handle "soft reset" of bases
- */
-function changeHalfInning() {
-  console.log(`🔄 半局結束: ${state.currentInning}局${state.half}`);
-  
-  // 軟重置：移除最前面的跑者（但保留鎖定的角色）
-  let removedRunner = false;
-  for (let i = 2; i >= 0; i--) {
-    if (state.bases[i] && !state.bases[i].locked) {
-      console.log(`🏃 ${state.bases[i].name} 因半局結束而退場`);
-      state.bases[i] = null;
-      removedRunner = true;
-      break;
-    }
-  }
-  
-  // 重置出局數
-  state.outs = 0;
-  state.gameStats.totalTurns++;
-  
-  // 清理局數相關效果
-  cleanupExpiredEffects(state, 'inning');
-  
-  if (state.half === 'top') {
-    state.half = 'bottom';
-    state.playerTurn = true;
-    document.getElementById('outcome-text').textContent = "🎵 輪到MyGO!!!!!攻擊！";
-  } else {
-    state.half = 'top';
-    state.currentInning++;
-    state.playerTurn = false;
-    document.getElementById('outcome-text').textContent = "⚾ 客隊攻擊中...";
+    // 抽手牌
+    draw(state.player, CONFIG.handSize);
     
-    // 檢查遊戲結束
-    if (checkGameEnd(state)) {
-      handleGameEnd();
-      return;
+    // 準備CPU牌組 (Yankees)
+    const cpuTeam = TEAMS.find(team => team.id === "NYY");
+    state.cpu.team = cpuTeam;
+    state.cpu.deck = [...cpuTeam.batters].map(prepareCard);
+    state.cpu.activePitcher = prepareCard(cpuTeam.pitchers[0]);
+    
+    console.log('✅ 牌組初始化完成');
+    console.log('  - 玩家手牌:', state.player.hand.length, '張');
+    console.log('  - 玩家牌組:', state.player.deck.length, '張');
+    console.log('  - CPU牌組:', state.cpu.deck.length, '張');
+    
+    // 開始CPU回合
+    const outcomeText = document.getElementById('outcome-text');
+    if (outcomeText) {
+      outcomeText.textContent = '🎵 MyGO!!!!! vs Yankees - 客隊先攻！';
     }
     
     setTimeout(() => {
-      runCpuTurn();
+      runCpuTurn(state);
     }, 1000);
-  }
-  
-  // 更新光環效果
-  updateAuraEffects(state);
-  render(state, handlers);
-}
-
-/**
- * 處理遊戲結束
- */
-function handleGameEnd() {
-  const result = state.gameResult;
-  let message = "";
-  
-  if (result.winner === 'home') {
-    message = "🎉 MyGO!!!!!獲勝！";
-  } else if (result.winner === 'away') {
-    message = "😔 Yankees獲勝...";
-  } else {
-    message = "🤝 平手！";
-  }
-  
-  message += ` 終場比數 ${result.finalScore.away} : ${result.finalScore.home}`;
-  
-  document.getElementById('outcome-text').textContent = message;
-  
-  // 顯示遊戲統計
-  console.log("📊 遊戲統計:", state.gameStats);
-  
-  render(state, handlers);
-}
-
-/**
- * CPU回合模擬
- */
-function runCpuTurn() {
-  let cpuOuts = 0;
-  let cpuBatterIndex = 0;
-  const playerPitcher = state.player.pitcher;
-  const cpuBases = [null, null, null];
-
-  const turnInterval = setInterval(() => {
-    if (cpuOuts >= 3) {
-      clearInterval(turnInterval);
-      changeHalfInning();
-      return;
-    }
-
-    const batter = state.cpu.deck[cpuBatterIndex % state.cpu.deck.length];
-    const result = simulateAtBat(batter, playerPitcher, state);
     
-    state.gameStats.cpuAtBats++;
-    console.log(`🤖 CPU: ${batter.name} - ${result.type}`);
+  } catch (error) {
+    console.error('❌ 牌組初始化失敗:', error);
+    showErrorMessage(`牌組初始化失敗: ${error.message}`);
+  }
+}
 
-    if (result.type === 'K' || result.type === 'OUT') {
-      cpuOuts++;
-      document.getElementById('outcome-text').textContent = result.description;
+function runPlayerTurn(state) {
+  try {
+    const card = state.player.hand[state.selected];
+    if (!card) return;
+    
+    console.log('🎯 玩家回合:', card.name);
+    
+    if (card.type === 'batter') {
+      // 簡化的打擊模擬
+      const result = simulateSimpleAtBat(card, state.cpu.activePitcher);
+      processSimpleOutcome(result, state);
+      
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = result.description;
+      }
+      
+    } else if (card.type === 'action') {
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = `${card.name} 戰術卡使用！`;
+      }
+    }
+    
+    // 移除卡牌
+    state.player.hand.splice(state.selected, 1);
+    state.player.discard.push(card);
+    draw(state.player, 1);
+    state.selected = -1;
+    
+    // 檢查三出局
+    if (state.outs >= 3) {
+      setTimeout(() => changeHalfInning(state), 1500);
+    }
+    
+  } catch (error) {
+    console.error('❌ 玩家回合失敗:', error);
+    showErrorMessage(`玩家回合失敗: ${error.message}`);
+  }
+}
+
+function runCpuTurn(state) {
+  try {
+    console.log('🤖 CPU回合開始');
+    
+    let cpuOuts = 0;
+    let cpuBatterIndex = 0;
+    
+    const turnInterval = setInterval(() => {
+      if (cpuOuts >= 3) {
+        clearInterval(turnInterval);
+        changeHalfInning(state);
+        return;
+      }
+      
+      const batter = state.cpu.deck[cpuBatterIndex % state.cpu.deck.length];
+      const result = simulateSimpleAtBat(batter, state.player.pitcher);
+      
+      if (result.type === 'K' || result.type === 'OUT') {
+        cpuOuts++;
+      } else {
+        state.score.away += result.points || 1;
+      }
+      
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = `CPU: ${result.description}`;
+      }
+      
+      cpuBatterIndex++;
+      render(state, { select: () => {}, button: () => {} });
+    }, 1500);
+    
+  } catch (error) {
+    console.error('❌ CPU回合失敗:', error);
+    showErrorMessage(`CPU回合失敗: ${error.message}`);
+  }
+}
+
+function changeHalfInning(state) {
+  try {
+    state.outs = 0;
+    
+    if (state.half === 'top') {
+      state.half = 'bottom';
+      state.playerTurn = true;
+      
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = '🎵 輪到MyGO!!!!!攻擊！';
+      }
+      
     } else {
-      // CPU得分邏輯
-      let points = 0;
-      const advanceCount = result.adv || 0;
-
-      // 推進CPU跑者
-      for (let i = 2; i >= 0; i--) {
-        if (cpuBases[i]) {
-          const newPosition = i + advanceCount;
-          if (newPosition >= 3) {
-            points++;
-            cpuBases[i] = null;
-          } else {
-            cpuBases[newPosition] = cpuBases[i];
-            cpuBases[i] = null;
-          }
+      state.half = 'top';
+      state.currentInning++;
+      state.playerTurn = false;
+      
+      if (state.currentInning > CONFIG.innings) {
+        // 遊戲結束
+        const winner = state.score.home > state.score.away ? "MyGO!!!!!獲勝！" : 
+                      state.score.away > state.score.home ? "Yankees獲勝！" : "平手！";
+        
+        const outcomeText = document.getElementById('outcome-text');
+        if (outcomeText) {
+          outcomeText.textContent = `🎉 比賽結束！${winner} 比數 ${state.score.away}:${state.score.home}`;
         }
+        
+        state.over = true;
+        return;
       }
-
-      // 放置CPU打者
-      if (advanceCount > 0 && advanceCount < 4) {
-        cpuBases[advanceCount - 1] = batter;
-      } else if (advanceCount === 4) {
-        points++;
+      
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = '⚾ 客隊攻擊中...';
       }
-
-      state.score.away += points;
-      document.getElementById('outcome-text').textContent = result.description + 
-        (points > 0 ? ` 客隊得${points}分！` : '');
+      
+      setTimeout(() => {
+        runCpuTurn(state);
+      }, 1000);
     }
     
-    cpuBatterIndex++;
-    render(state, handlers);
-  }, 1500);
+    render(state, { select: () => {}, button: () => {} });
+    
+  } catch (error) {
+    console.error('❌ 半局更換失敗:', error);
+    showErrorMessage(`半局更換失敗: ${error.message}`);
+  }
 }
 
-// =============================================================================
-// 3. Utility helper functions
-// =============================================================================
+// 簡化的打擊模擬
+function simulateSimpleAtBat(batter, pitcher) {
+  const random = Math.random();
+  
+  if (random < 0.2) {
+    return { type: 'K', description: `${batter.name} 三振出局`, points: 0 };
+  } else if (random < 0.3) {
+    return { type: 'OUT', description: `${batter.name} 出局`, points: 0 };
+  } else if (random < 0.4) {
+    return { type: 'BB', description: `${batter.name} 保送`, points: 1 };
+  } else if (random < 0.5) {
+    return { type: 'HR', description: `${batter.name} 全壘打！`, points: 4 };
+  } else if (random < 0.7) {
+    return { type: '2B', description: `${batter.name} 二壘安打`, points: 2 };
+  } else {
+    return { type: '1B', description: `${batter.name} 一壘安打`, points: 1 };
+  }
+}
 
+function processSimpleOutcome(result, state) {
+  if (result.type === 'K' || result.type === 'OUT') {
+    state.outs++;
+  } else {
+    state.score.home += result.points || 1;
+    // 簡化的壘包邏輯
+    if (result.points && result.points < 4) {
+      // 假設有跑者上壘
+    }
+  }
+}
+
+// 工具函數
 function prepareCard(cardData) {
   const card = { ...cardData };
   
@@ -482,7 +352,7 @@ function draw(player, numToDraw) {
       player.discard = [];
       shuffle(player.deck);
     }
-    if (player.hand.length < state.cfg.handSize && player.deck.length > 0) {
+    if (player.hand.length < CONFIG.handSize && player.deck.length > 0) {
       player.hand.push(player.deck.pop());
     }
   }
@@ -495,34 +365,16 @@ function shuffle(deck) {
   }
 }
 
-// =============================================================================
-// 4. Game startup
-// =============================================================================
-
-// 初始化遊戲
-console.log("🎮 MyGO!!!!! TCG 啟動中...");
-console.log("🎸 預設隊伍: MyGO!!!!! & Ave Mujica");
-
-// 執行初始渲染
-render(state, handlers);
-
-// 添加鍵盤快捷鍵
-document.addEventListener('keydown', (e) => {
-  if (e.key >= '1' && e.key <= '5') {
-    const index = parseInt(e.key) - 1;
-    if (index < state.player.hand.length) {
-      handlers.select(index);
-    }
-  } else if (e.key === 'Enter' || e.key === ' ') {
-    e.preventDefault();
-    handlers.button();
-  } else if (e.key === 'r' || e.key === 'R') {
-    handlers.restart();
+function showErrorMessage(message) {
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = `❌ 錯誤: ${message}`;
+    outcomeText.style.color = '#e74c3c';
   }
-});
+  
+  console.error('🚨 顯示錯誤訊息:', message);
+}
 
-console.log("🎯 遊戲已準備就緒！");
-console.log("📋 操作說明:");
-console.log("  - 點擊卡牌或按數字鍵1-5選擇");
-console.log("  - 按Enter或空格鍵確認");
-console.log("  - 按R重新開始");
+// 啟動遊戲
+console.log('🎮 準備啟動 MyGO!!!!! TCG...');
+initializeGame();

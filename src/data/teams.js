@@ -1,181 +1,12 @@
-// /src/data/teams.js
+// src/data/teams.js - 修復的隊伍資料
+console.log('📦 載入 Teams 資料...');
+
 export const TEAMS = [
-  {
-    id: "NYY",
-    name: "Yankees",
-    batters: [
-      { type: 'batter', name: "Aaron Judge", stats: { power: 98, hitRate: 90, contact: 82, speed: 60 } },
-      { type: 'batter', name: "Anthony Volpe", stats: { power: 65, hitRate: 78, contact: 75, speed: 92 } },
-      { type: 'batter', name: "DJ LeMahieu", stats: { power: 55, hitRate: 80, contact: 88, speed: 50 } },
-      { type: 'batter', name: "Cody Bellinger", stats: { power: 80, hitRate: 82, contact: 79, speed: 85 } },
-      { type: 'batter', name: "Austin Wells", stats: { power: 78, hitRate: 65, contact: 70, speed: 55 } },
-      { type: 'batter', name: "Paul Goldschmidt", stats: { power: 88, hitRate: 92, contact: 85, speed: 58 } },
-    ],
-    pitchers: [
-      { type: 'pitcher', name: "Gerrit Cole", stats: { power: 99, velocity: 95, control: 88, technique: 90 } },
-      { type: 'pitcher', name: "Carlos Rodón", stats: { power: 90, velocity: 92, control: 80, technique: 85 } },
-    ],
-    actionCards: [], // Placeholder for future action cards
-  },
-  {
-    id: "LAD",
-    name: "Dodgers",
-    batters: [
-      { type: 'batter', name: "Mookie Betts", stats: { power: 85, hitRate: 94, contact: 92, speed: 90 } },
-      { type: 'batter', name: "Shohei Ohtani", stats: { power: 100, hitRate: 95, contact: 88, speed: 89 } },
-      { type: 'batter', name: "Freddie Freeman", stats: { power: 88, hitRate: 96, contact: 98, speed: 65 } },
-      { type: 'batter', name: "Will Smith", stats: { power: 82, hitRate: 85, contact: 90, speed: 55 } },
-    ],
-    pitchers: [
-      { type: 'pitcher', name: "Y. Yamamoto", stats: { power: 90, velocity: 96, control: 98, technique: 95 } },
-      { type: 'pitcher', name: "Tyler Glasnow", stats: { power: 98, velocity: 100, control: 75, technique: 90 } },
-    ],
-    actionCards: [], // Placeholder for future action cards
-  },
-  {
-    id: "PHI",
-    name: "Philosophers",
-    batters: [
-      {
-        type: "batter",
-        name: "Socrates",
-        stats: { power: 85, hitRate: 95, contact: 90, speed: 60 },
-        effects: {
-          synergy: {
-            condition: "onBase",
-            effect: { target: "allFriendlyBatters", stat: "power", value: 10, duration: "turn" }
-          }
-        }
-      },
-      {
-        type: "batter",
-        name: "Plato",
-        stats: { power: 90, hitRate: 85, contact: 88, speed: 65 },
-        effects: {
-          play: { target: "hand", stat: "hitRate", value: 5, duration: "inning" }
-        }
-      },
-      {
-        type: "batter",
-        name: "Aristotle",
-        stats: { power: 88, hitRate: 90, contact: 92, speed: 62 },
-        effects: {
-          death: { target: "deck", stat: "power", value: 2, duration: "permanent" }
-        }
-      },
-      {
-        type: "batter",
-        name: "Heraclitus",
-        stats: { power: 75, hitRate: 80, contact: 85, speed: 70 },
-        effects: {
-          aura: { condition: "onBase", target: "allFriendlyBatters", stat: "contact", value: 5 }
-        }
-      },
-      {
-        type: "batter",
-        name: "Parmenides",
-        stats: { power: 80, hitRate: 78, contact: 82, speed: 55 },
-        effects: {
-          play: { target: "enemyPitcher", stat: "technique", value: -10, duration: "atBat" }
-        }
-      },
-      {
-        type: "batter",
-        name: "Zeno of Elea",
-        stats: { power: 70, hitRate: 75, contact: 80, speed: 85 },
-        effects: {
-          synergy: {
-            condition: "philosopherOnSecond",
-            effect: { target: "runners", action: "advanceExtraBase", value: 1 }
-          }
-        }
-      },
-      {
-        type: "batter",
-        name: "Pythagoras",
-        stats: { power: 78, hitRate: 82, contact: 75, speed: 75 },
-        effects: {
-          aura: { condition: "onBase", target: "self", stat: "doubleChance", value: 0.1 }
-        }
-      },
-      {
-        type: "batter",
-        name: "Anaxagoras",
-        stats: { power: 82, hitRate: 80, contact: 78, speed: 65 },
-        effects: {
-          death: { target: "hand", action: "drawExtra", value: 1, duration: "nextTurn" }
-        }
-      },
-      {
-        type: "batter",
-        name: "Diogenes",
-        stats: { power: 65, hitRate: 70, contact: 85, speed: 80 },
-        effects: {
-          play: { target: "discard", action: "shuffleToDeck", value: 1 }
-        }
-      }
-    ],
-    pitchers: [
-      {
-        type: "pitcher",
-        name: "Thales of Miletus",
-        stats: { power: 85, velocity: 90, control: 80, technique: 88 }
-      },
-      {
-        type: "pitcher",
-        name: "Empedocles",
-        stats: { power: 88, velocity: 85, control: 85, technique: 90 }
-      }
-    ],
-    actionCards: [
-      {
-        type: "action",
-        name: "犧牲觸擊",
-        stats: {},
-        effects: {
-          play: {
-            action: "bunt",
-            description: "嘗試推進壘上所有跑者一個壘包，但打者會出局。",
-          }
-        }
-      },
-      {
-        type: "action",
-        name: "盜壘指令",
-        stats: {},
-        effects: {
-          play: {
-            action: "steal",
-            target: "runner_on_first",
-            description: "命令一壘的跑者嘗試盜向二壘！",
-          }
-        }
-      },
-      {
-        type: "action",
-        name: "深度專注",
-        stats: {},
-        effects: {
-          play: {
-            action: "buff",
-            target: "hand",
-            stat: "contact",
-            value: 15,
-            duration: "turn",
-            description: "本回合中，你手中所有打者的專注力大幅提升。",
-          }
-        }
-      }
-    ],
-  },
-// MyGO!!!!! TCG Team Data - 新增到 TEAMS 陣列中
-
-
   {
     id: "MGO",
     name: "MyGO!!!!!",
     description: "BanG Dream! It's MyGO!!!!! & Ave Mujica",
-    theme: "MyGO", // 主題標識
+    theme: "MyGO",
     
     batters: [
       // === MyGO!!!!! 成員 ===
@@ -593,45 +424,113 @@ export const TEAMS = [
             description: "從手牌中棄掉一張MyGO!!!!!角色卡，你牌庫及手牌中所有的「祥子」卡，力量永久+20。"
           }
         }
-      },
+      }
+    ]
+  },
+  
+  // 保留原有的 Yankees 和 Dodgers 作為對手
+  {
+    id: "NYY",
+    name: "Yankees", 
+    description: "經典棒球隊伍",
+    batters: [
+      { type: 'batter', name: "Aaron Judge", stats: { power: 98, hitRate: 90, contact: 82, speed: 60 } },
+      { type: 'batter', name: "Anthony Volpe", stats: { power: 65, hitRate: 78, contact: 75, speed: 92 } },
+      { type: 'batter', name: "DJ LeMahieu", stats: { power: 55, hitRate: 80, contact: 88, speed: 50 } },
+      { type: 'batter', name: "Cody Bellinger", stats: { power: 80, hitRate: 82, contact: 79, speed: 85 } },
+      { type: 'batter', name: "Austin Wells", stats: { power: 78, hitRate: 65, contact: 70, speed: 55 } },
+      { type: 'batter', name: "Paul Goldschmidt", stats: { power: 88, hitRate: 92, contact: 85, speed: 58 } },
+    ],
+    pitchers: [
+      { type: 'pitcher', name: "Gerrit Cole", stats: { power: 99, velocity: 95, control: 88, technique: 90 } },
+      { type: 'pitcher', name: "Carlos Rodón", stats: { power: 90, velocity: 92, control: 80, technique: 85 } },
+    ],
+    actionCards: [
       {
         type: "action",
-        name: "樂器練習",
-        band: "General",
-        tags: ["Training", "Buff"],
-        rarity: "Common",
+        name: "Home Run Swing",
         effects: {
           play: {
             keyword: "buff",
             target: "chooseFromHand",
-            stat: "chooseOne",
-            value: 10,
+            stat: "power",
+            value: 20,
             duration: "turn",
-            description: "選擇手牌中的一名角色和一項數值，該數值本回合+10。"
+            description: "選擇手牌中的一名打者，本回合力量+20。"
           }
         }
-      },
+      }
+    ]
+  },
+  
+  {
+    id: "LAD",
+    name: "Dodgers",
+    description: "洛杉磯道奇隊",
+    batters: [
+      { type: 'batter', name: "Mookie Betts", stats: { power: 85, hitRate: 94, contact: 92, speed: 90 } },
+      { type: 'batter', name: "Shohei Ohtani", stats: { power: 100, hitRate: 95, contact: 88, speed: 89 } },
+      { type: 'batter', name: "Freddie Freeman", stats: { power: 88, hitRate: 96, contact: 98, speed: 65 } },
+      { type: 'batter', name: "Will Smith", stats: { power: 82, hitRate: 85, contact: 90, speed: 55 } },
+    ],
+    pitchers: [
+      { type: 'pitcher', name: "Y. Yamamoto", stats: { power: 90, velocity: 96, control: 98, technique: 95 } },
+      { type: 'pitcher', name: "Tyler Glasnow", stats: { power: 98, velocity: 100, control: 75, technique: 90 } },
+    ],
+    actionCards: [
       {
         type: "action",
-        name: "舞台燈光",
-        band: "General",
-        tags: ["Performance", "Aura"],
-        rarity: "Common",
+        name: "Perfect Game",
         effects: {
           play: {
             keyword: "buff",
-            target: "allOnBase",
+            target: "allFriendly",
             stat: "hitRate",
-            value: 5,
+            value: 10,
             duration: "inning",
-            description: "本局中，所有壘上角色的安打率+5。"
+            description: "本局中，所有我方打者安打率+10。"
           }
         }
       }
     ]
   }
-  ];
+];
 
+/**
+ * 根據ID獲取隊伍
+ */
 export function getTeamById(teamId) {
-  return TEAMS.find(team => team.id === teamId);
+  const team = TEAMS.find(team => team.id === teamId);
+  if (!team) {
+    console.warn(`⚠️ 找不到隊伍: ${teamId}`);
+    return null;
+  }
+  console.log(`✅ 找到隊伍: ${team.name} (${team.id})`);
+  return team;
 }
+
+/**
+ * 獲取所有可用隊伍
+ */
+export function getAllTeams() {
+  return TEAMS;
+}
+
+/**
+ * 獲取MyGO隊伍
+ */
+export function getMyGOTeam() {
+  return getTeamById("MGO");
+}
+
+/**
+ * 檢查隊伍是否存在
+ */
+export function teamExists(teamId) {
+  return TEAMS.some(team => team.id === teamId);
+}
+
+console.log(`✅ Teams 資料載入完成: ${TEAMS.length} 個隊伍`);
+TEAMS.forEach(team => {
+  console.log(`  - ${team.name} (${team.id}): ${team.batters.length} 打者, ${team.pitchers.length} 投手, ${team.actionCards?.length || 0} 戰術卡`);
+});
