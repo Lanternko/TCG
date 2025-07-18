@@ -6,25 +6,25 @@
  * @param {object} handlers - Event handler object (select, button)
  */
 export function render(state, handlers) {
-  // Update all UI blocks
   renderScore(state.score);
   renderOuts(state.outs);
   renderInning(state.currentInning, state.half);
   renderBases(state.bases);
   renderCpuPitcher(state.cpu.activePitcher);
-  renderPlayerPitcher(state.player.pitcher); // NEW: Render player's pitcher
+  renderPlayerPitcher(state.player.pitcher);
   renderHand(state.player.hand, state.selected, handlers.select, state);
   renderDeckInfo(state.player);
   renderMainButton(state);
+  renderActiveEffects(state.activeEffects); // --- NEW ---
   
-  // Bind main button event (if not already bound)
   const button = document.getElementById('main-button');
   if (!button.onclick) {
     button.onclick = handlers.button;
   }
 }
 
-// --- Helper render functions for individual UI blocks ---
+
+// --- Helper render functions ---
 
 function renderScore(score) {
   document.getElementById('away-score').textContent = score.away;
@@ -45,7 +45,6 @@ function renderInning(inning, half) {
 }
 
 function renderBases(bases) {
-  // --- UPDATED for new parallel bases ---
   document.getElementById('first-base')?.classList.toggle('occupied', !!bases[0]);
   document.getElementById('second-base')?.classList.toggle('occupied', !!bases[1]);
   document.getElementById('third-base')?.classList.toggle('occupied', !!bases[2]);
@@ -55,22 +54,20 @@ function renderCpuPitcher(pitcher) {
   const pitcherArea = document.getElementById('cpu-pitcher-area');
   if (!pitcherArea) return;
   pitcherArea.innerHTML = pitcher ? `
-    <div class="card" title="${getCardDescription(pitcher)}">
+    <div class="team-indicator away">客隊投手</div>
+    <div class="card">
       <div class="card-name">${pitcher.name}</div>
       <div class="card-ovr">${pitcher.ovr}</div>
       <div class="card-stats">POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity}<br>CTL:${pitcher.stats.control} TEC:${pitcher.stats.technique}</div>
     </div>` : '';
 }
 
-/**
- * NEW: Render player's pitcher card
- * @param {object} pitcher - Player's pitcher object
- */
 function renderPlayerPitcher(pitcher) {
   const pitcherArea = document.getElementById('player-pitcher-area');
   if (!pitcherArea) return;
   pitcherArea.innerHTML = pitcher ? `
-    <div class="card" title="${getCardDescription(pitcher)}">
+    <div class="team-indicator home">主隊投手</div>
+    <div class="card">
       <div class="card-name">${pitcher.name}</div>
       <div class="card-ovr">${pitcher.ovr}</div>
       <div class="card-stats">POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity}<br>CTL:${pitcher.stats.control} TEC:${pitcher.stats.technique}</div>
@@ -86,9 +83,6 @@ function renderHand(hand, selectedIndex, selectHandler, state) {
     const cardEl = document.createElement('div');
     cardEl.className = 'card';
     
-    // --- NEW: Add title for hover description ---
-    cardEl.title = getCardDescription(card);
-
     if (index === selectedIndex) {
       cardEl.classList.add('selected');
     }
@@ -96,32 +90,39 @@ function renderHand(hand, selectedIndex, selectHandler, state) {
     if (card.type === 'action') {
       cardEl.classList.add('action-card');
     }
-    
-    // Check if card can trigger special effects
-    if (canTriggerEffect(card, state)) {
-      cardEl.classList.add('effect-active');
-      // --- NEW: Remove effect class after a delay ---
-      setTimeout(() => cardEl.classList.remove('effect-active'), 1500);
-    }
 
-    let cardContent = '';
+    let cardStats = '';
     if (card.type === 'batter') {
-      cardContent = `POW:${card.stats.power} HIT:${card.stats.hitRate}<br>CON:${card.stats.contact} SPD:${card.stats.speed}`;
-    } else if (card.type === 'action') {
-      cardContent = getCardDescription(card); // Show description for action cards
+      cardStats = `POW:${card.stats.power} HIT:${card.stats.hitRate}<br>CON:${card.stats.contact} SPD:${card.stats.speed}`;
     }
-    
-    const description = getCardDescription(card);
+    // --- UPDATED: Always show description for all card types ---
+    const description = getCardDescription(card, 'short');
 
     cardEl.innerHTML = `
       <div class="card-name">${card.name}</div>
       <div class="card-ovr">${card.ovr}</div>
-      <div class="card-stats">${cardContent}</div>
-      ${description ? `<div class="card-description">${description}</div>` : ''}`;
+      <div class="card-stats">${cardStats}</div>
+      <div class="card-description">${description}</div>`;
       
     cardEl.onclick = () => selectHandler(index);
     handContainer.appendChild(cardEl);
   });
+}
+
+// --- NEW: Render Active Effects ---
+function renderActiveEffects(activeEffects) {
+    const display = document.getElementById('active-effects-display');
+    if (!display) return;
+    display.innerHTML = ''; // Clear previous effects
+    if (activeEffects.length > 0) {
+        display.innerHTML = '場上效果：';
+        activeEffects.forEach(effect => {
+            const effectEl = document.createElement('span');
+            effectEl.className = 'effect';
+            effectEl.textContent = `[${effect.cardName}] ${getCardDescription(effect, 'effect')}`;
+            display.appendChild(effectEl);
+        });
+    }
 }
 
 function renderDeckInfo(player) {
@@ -150,6 +151,33 @@ function renderMainButton(state) {
     button.textContent = "客隊回合";
     button.disabled = true;
   }
+}
+
+function getCardDescription(card, context = 'full') {
+    if (!card) return "";
+
+    // For rendering active effects
+    if (context === 'effect' && card.description) {
+        return card.description;
+    }
+    
+    if (card.effects) {
+        const effect = card.effects.play || card.effects.synergy || card.effects.aura || card.effects.death;
+        if (effect && effect.description) {
+            return effect.description;
+        }
+    }
+    
+    if (card.type === 'action') {
+        return card.effects?.play?.description || '戰術卡';
+    }
+
+    if (context === 'short') { // For cards in hand
+        const effect = card.effects?.play || card.effects?.synergy || card.effects?.aura || card.effects?.death;
+        return effect?.description || '';
+    }
+
+    return "";
 }
 
 // --- Helper functions for card effects ---
@@ -188,29 +216,3 @@ function canTriggerEffect(card, state) {
   return false;
 }
 
-function getCardDescription(card) {
-    if (!card) return "";
-
-    if (card.type === 'action' && card.effects && card.effects.play) {
-        return card.effects.play.description;
-    }
-
-    if (card.effects) {
-        const effectTypes = Object.keys(card.effects);
-        if (effectTypes.length > 0) {
-            const firstEffect = card.effects[effectTypes[0]];
-            if (firstEffect.description) return firstEffect.description;
-            // Fallback descriptions
-            if (effectTypes.includes('synergy')) return "協作效果：在壘上時觸發。";
-            if (effectTypes.includes('aura')) return "光環效果：影響其他球員。";
-            if (effectTypes.includes('play')) return "出牌效果：打擊時觸發。";
-            if (effectTypes.includes('death')) return "遺言效果：出局時觸發。";
-        }
-    }
-
-    // Default description for pitchers/batters without special effects
-    if (card.type === 'pitcher') return `${card.name} - ${card.stats.power}威力, ${card.stats.velocity}速球, ${card.stats.control}控球, ${card.stats.technique}技巧`;
-    if (card.type === 'batter') return `${card.name} - ${card.stats.power}力量, ${card.stats.hitRate}打擊, ${card.stats.contact}專注, ${card.stats.speed}速度`;
-
-    return "";
-}

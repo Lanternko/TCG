@@ -1,4 +1,4 @@
-// src/main.js (Updated with scoring fixes and UI improvements)
+// src/main.js
 import { createGameState } from './engine/game_state.js';
 import { render } from './ui/ui.js';
 import { simulateAtBat, processCardEffects, applyActionCard } from './engine/sim.js';
@@ -76,115 +76,86 @@ function runPlayerTurn() {
   const card = state.player.hand[state.selected];
   if (!card) return;
 
-  // --- Core change: decide flow based on card type ---
   if (card.type === 'batter') {
-    // 1. If it's a batter card, execute original batting flow
     processCardEffects(card, 'play', state);
     const result = simulateAtBat(card, state.cpu.activePitcher, state);
-    processAtBatOutcome(result, card);
+    processAtBatOutcome(result, card); // <-- Will use the new scoring logic
   } else if (card.type === 'action') {
-    // 2. If it's an action card, execute new tactical flow
     const description = applyActionCard(card, state);
     document.getElementById('outcome-text').textContent = description;
   }
 
-  // --- State update phase ---
-  // Remove card from hand, add to discard pile
   state.player.hand.splice(state.selected, 1);
   state.player.discard.push(card);
-  draw(state.player, 1); // Draw a new card
-  state.selected = -1; // Reset selection
+  draw(state.player, 1);
+  state.selected = -1;
 
-  // Clean up one-time effects (e.g., effects that only last one at-bat)
   state.activeEffects = state.activeEffects.filter(e => e.duration !== "atBat");
 
-  // --- End of turn check --- 
-  render(state, handlers); // First render this at-bat's result
+  render(state, handlers);
 
   if (state.outs >= 3) {
-    // Use setTimeout to give player 1.5 seconds to view result, then change sides
     setTimeout(changeHalfInning, 1500);
   }
 }
 
 /**
- * Process at-bat outcome, update score, outs, and bases
+ * --- COMPLETELY REVISED ---
+ * Process at-bat outcome, update score based on custom rules, and advance runners.
  * @param {object} result - Simulation result
  * @param {object} card - Batting card
  */
 function processAtBatOutcome(result, card) {
   document.getElementById('outcome-text').textContent = result.description;
+  const currentScorer = state.half === 'top' ? 'away' : 'home';
 
   if (result.type === 'K' || result.type === 'OUT') {
     state.outs++;
-    processCardEffects(card, 'death', state); // Handle 'death' effects
-    // Handle permanent effects (like Aristotle)
-    const deathEffect = card.effects?.death;
-    if (deathEffect?.duration === 'permanent') {
-        state.player.deck.forEach(c => {
-          if (c.stats && c.stats[deathEffect.stat] !== undefined) {
-            c.stats[deathEffect.stat] += deathEffect.value;
-          }
-        });
-        state.player.hand.forEach(c => {
-          if (c.stats && c.stats[deathEffect.stat] !== undefined) {
-            c.stats[deathEffect.stat] += deathEffect.value;
-          }
-        });
-        state.player.discard.forEach(c => {
-          if (c.stats && c.stats[deathEffect.stat] !== undefined) {
-            c.stats[deathEffect.stat] += deathEffect.value;
-          }
-        });
-    }
+    processCardEffects(card, 'death', state);
   } else {
-    // If safely on base, handle 'aura' and 'synergy' effects
+    // --- NEW SCORING LOGIC ---
+    let points = 0;
+    switch (result.type) {
+        case '1B': points = CONFIG.scoring.single; break;
+        case '2B': points = CONFIG.scoring.double; break;
+        case '3B': points = CONFIG.scoring.triple; break;
+        case 'HR': points = CONFIG.scoring.homeRun; break;
+    }
+    state.score[currentScorer] += points;
+
+    // --- NEW RUNNER ADVANCEMENT LOGIC ---
     processCardEffects(card, 'aura', state);
     processCardEffects(card, 'synergy', state);
 
-    // FIX: Proper runner advancement and scoring
-    const advanceCount = result.adv || 0;
-    let scoreGained = 0;
+    const runners = [card, ...state.bases.filter(Boolean)]; // Batter is now a runner
+    state.bases = [null, null, null]; // Clear bases before placing runners
 
-    // Process existing runners first (from third to first)
-    for (let baseIndex = 2; baseIndex >= 0; baseIndex--) {
-      if (state.bases[baseIndex]) {
-        const runner = state.bases[baseIndex];
-        const newPosition = baseIndex + advanceCount;
-        
-        if (newPosition >= 3) {
-          // Runner scores!
-          scoreGained++;
-          state.bases[baseIndex] = null;
-          console.log(`${runner.name} scores!`);
-        } else {
-          // Move runner to new base
-          state.bases[baseIndex] = null;
-          state.bases[newPosition] = runner;
+    if (result.type === 'HR') {
+        // Home run clears the bases, no need to place anyone.
+    } else {
+        const adv = result.adv || 0;
+        runners.forEach(runner => {
+            const currentBase = (runner === card) ? -1 : state.bases.indexOf(runner);
+            const newBaseIndex = currentBase + adv;
+            if (newBaseIndex < 3) {
+                // If the new base is empty or the runner is the batter, place them.
+                if (!state.bases[newBaseIndex] || runner === card) {
+                    state.bases[newBaseIndex] = runner;
+                } else {
+                    // Simple logic: if base is occupied, push to the next one.
+                    if (newBaseIndex + 1 < 3) state.bases[newBaseIndex + 1] = runner;
+                }
+            }
+            // Note: In this custom scoring, runners reaching home do not add extra points.
+        });
+        // Place the batter on their new base
+        if (adv > 0 && adv < 4) {
+            state.bases[adv - 1] = card;
         }
-      }
-    }
-
-    // Place the batter on base
-    if (advanceCount > 0 && advanceCount < 4) {
-      state.bases[advanceCount - 1] = card;
-    } else if (advanceCount === 4) {
-      // Home run - batter scores too
-      scoreGained++;
-    }
-
-    // Update score
-    const currentScorer = state.half === 'top' ? 'away' : 'home';
-    state.score[currentScorer] += scoreGained;
-
-    // Update outcome text with scoring info
-    if (scoreGained > 0) {
-      document.getElementById('outcome-text').textContent += ` ${scoreGained} 分得手！`;
     }
   }
 }
 
-// ... (main.js 的其他部分保持不變) ...
 
 /**
  * Change sides and handle "soft reset" of bases
