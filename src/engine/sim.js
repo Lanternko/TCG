@@ -2,10 +2,10 @@
 import { CONFIG } from '../data/config.js';
 
 export function simulateAtBat(batter, pitcher, state) {
-  // 建立一個臨時的、被效果修改過的打者和投手物件
+  // Create temporary, effect-modified batter and pitcher objects
   const modifiedBatter = JSON.parse(JSON.stringify(batter));
   const modifiedPitcher = JSON.parse(JSON.stringify(pitcher));
-  // 應用所有當前回合的 activeEffects
+  // Apply all current turn's activeEffects
   applyAllActiveEffects(state, modifiedBatter.stats, modifiedPitcher.stats);
 
   const { norm } = CONFIG;
@@ -32,10 +32,10 @@ export function simulateAtBat(batter, pitcher, state) {
 }
 
 /**
- * NEW: 處理卡牌效果並將其加入 activeEffects
- * @param {object} card - 被觸發效果的卡牌
- * @param {string} trigger - 觸發時機 (e.g., 'play', 'death', 'aura')
- * @param {object} state - 遊戲狀態
+ * Process card effects and add them to activeEffects
+ * @param {object} card - Card whose effects are triggered
+ * @param {string} trigger - Trigger timing (e.g., 'play', 'death', 'aura')
+ * @param {object} state - Game state
  */
 export function processCardEffects(card, trigger, state) {
     if (!card.effects || !card.effects[trigger]) {
@@ -49,31 +49,31 @@ export function processCardEffects(card, trigger, state) {
         ...effect
     };
     
-    // 特定效果的直接處理
+    // Direct handling of specific effects
     if (effect.action === "shuffleToDeck" && trigger === "play") {
         if (state.player.discard.length > 0) {
             const cardToShuffle = state.player.discard.splice(0, 1)[0];
             state.player.deck.push(cardToShuffle);
-            // 你可能需要一個 shuffleDeck 函數
+            // You might need a shuffleDeck function
             console.log(`${card.name} 的效果：將 ${cardToShuffle.name} 從棄牌堆洗回牌庫！`);
         }
-        return; // 此效果不進入 activeEffects
+        return; // This effect doesn't enter activeEffects
     }
 
-    // 將需要持續作用的效果加入 activeEffects
+    // Add effects that need to persist to activeEffects
     state.activeEffects.push(effectData);
     console.log(`觸發效果: ${card.name} 的 ${trigger} 效果已被啟動。`);
 }
 
 /**
- * NEW: 應用所有 activeEffects
- * @param {object} state - 遊戲狀態
- * @param {object} batterStats - 要修改的打者屬性
- * @param {object} pitcherStats - 要修改的投手屬性
+ * Apply all activeEffects
+ * @param {object} state - Game state
+ * @param {object} batterStats - Batter stats to modify
+ * @param {object} pitcherStats - Pitcher stats to modify
  */
 function applyAllActiveEffects(state, batterStats, pitcherStats) {
     state.activeEffects.forEach(effect => {
-        // 檢查觸發條件
+        // Check trigger conditions
         const isSocratesSynergy = effect.cardName === "Socrates" && state.bases.some(b => b && b.name === "Socrates");
         const isHeraclitusAura = effect.cardName === "Heraclitus" && state.bases.some(b => b && b.name === "Heraclitus");
 
@@ -82,17 +82,18 @@ function applyAllActiveEffects(state, batterStats, pitcherStats) {
         } else if (effect.target === "enemyPitcher" && effect.duration === "atBat") {
             pitcherStats[effect.stat] += effect.value;
         } else if (effect.target === "hand" && effect.type === "play") {
-            // 這個效果應該在 main.js 的抽牌/出牌階段處理，這裡僅作範例
+            // This effect should be handled in main.js during draw/play phase, here for example only
         } else if (effect.target === "deck" && effect.type === "death") {
-             // 永久效果在 main.js 中處理一次即可
+             // Permanent effects handled once in main.js
         }
     });
 }
+
 /**
- * NEW: 處理戰術卡效果
- * @param {object} card - 被打出的戰術卡
- * @param {object} state - 遊戲狀態
- * @returns {string} - 描述結果的文字
+ * Handle action card effects
+ * @param {object} card - Action card being played
+ * @param {object} state - Game state
+ * @returns {string} - Description of the result
  */
 export function applyActionCard(card, state) {
   const effect = card.effects.play;
@@ -100,7 +101,7 @@ export function applyActionCard(card, state) {
 
   switch (effect.action) {
     case "bunt":
-      // 推進所有跑者，打者出局
+      // Advance all runners, batter is out
       state.outs++;
       const runners = state.bases.filter(Boolean);
       state.bases = [null, null, null];
@@ -108,16 +109,21 @@ export function applyActionCard(card, state) {
         const currentBase = state.bases.indexOf(runner);
         const newBaseIndex = currentBase + 1;
         if (newBaseIndex < 3) state.bases[newBaseIndex] = runner;
-        else state.score.away++; // 跑回本壘得分
+        else {
+          // Score run
+          const currentScorer = state.half === 'top' ? 'away' : 'home';
+          state.score[currentScorer]++;
+        }
       });
       outcomeDescription = `${card.name}成功！跑者向前推進！`;
       break;
 
     case "steal":
-      const runner = state.bases[0]; // 簡化：只偷二壘
+      const runner = state.bases[0]; // Simplified: only steal second
       if (runner) {
-        // 盜壘成功率 = (跑者速度 - 投手力量) / 100
-        const successChance = (runner.stats.speed - state.cpu.activePitcher.stats.power) / 100 + 0.5;
+        // Success rate = (runner speed - pitcher power) / 100
+        const pitcher = state.playerTurn ? state.cpu.activePitcher : state.player.pitcher;
+        const successChance = (runner.stats.speed - pitcher.stats.power) / 100 + 0.5;
         if (Math.random() < successChance) {
           state.bases[1] = runner;
           state.bases[0] = null;
@@ -133,7 +139,7 @@ export function applyActionCard(card, state) {
       break;
 
     case "buff":
-      // 將效果加入 activeEffects，它會在 simulateAtBat 中被應用
+      // Add effect to activeEffects, it will be applied in simulateAtBat
       state.activeEffects.push({
         cardName: card.name,
         type: 'buff',
@@ -158,25 +164,4 @@ function hitBySpeed(speed, state) {
   if (Math.random() < tripleChance) return { type: '3B', description: `三壘安打！`, adv: 3 };
   if (Math.random() < doubleChance) return { type: '2B', description: `二壘安打！`, adv: 2 };
   return { type: '1B', description: `一壘安打！`, adv: 1 };
-}
-
-function applyEffects(state, batter, pitcher) {
-  state.activeEffects.forEach(effect => {
-    if (effect.type === "synergy" && effect.cardName === "Socrates" && state.bases.some(b => b && b.name === "Socrates")) {
-      batter.stats.power += effect.value;
-    } else if (effect.type === "aura" && effect.cardName === "Heraclitus" && state.bases.some(b => b && b.name === "Heraclitus")) {
-      batter.stats.contact += effect.value;
-    } else if (effect.type === "play" && effect.cardName === "Parmenides" && effect.duration === "atBat") {
-      pitcher.stats.technique += effect.value; // Negative value reduces technique
-    } else if (effect.type === "play" && effect.cardName === "Plato" && effect.duration === "inning") {
-      state.player.hand.forEach(card => {
-        if (card.type === 'batter') card.stats.hitRate += effect.value;
-      });
-    }
-  });
-
-  // Apply Zeno's synergy effect during base advancement
-  if (batter.name === "Zeno of Elea" && state.bases[1] && state.bases[1].name !== "Zeno of Elea") {
-    state.activeEffects.push({ cardName: "Zeno of Elea", type: "synergy", effect: "advanceExtraBase", value: 1 });
-  }
 }

@@ -10,14 +10,20 @@
     <style>
         body { font-family: 'Inter', sans-serif; background: #1a2a3a; color: #f0f8ff; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; }
         .game-container { width: 100%; height: 100%; max-width: 1200px; max-height: 900px; display: flex; flex-direction: column; background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); border-radius: 20px; box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); border: 2px solid #4a5a6a; }
-        .card { width: 120px; height: 170px; background: #2c3e50; border: 2px solid #7f8c8d; border-radius: 10px; padding: 0.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease; position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.3); }
-        .card-name { font-weight: 700; font-size: 0.9rem; text-align: center; }
-        .card-ovr { position: absolute; top: 5px; right: 5px; font-size: 0.8rem; font-weight: bold; background-color: rgba(0,0,0,0.5); padding: 2px 5px; border-radius: 5px; }
-        .card-stats { font-size: 0.7rem; text-align: center; font-family: 'Roboto Mono', monospace; }
+        .card { width: 120px; height: 170px; background: #2c3e50; border: 2px solid #7f8c8d; border-radius: 10px; padding: 0.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease; position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; }
+        .card-name { font-weight: 700; font-size: 0.9rem; text-align: center; margin-bottom: 0.3rem; }
+        .card-ovr { position: absolute; top: 5px; right: 5px; font-size: 0.8rem; font-weight: bold; background-color: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 5px; color: #ffd700; }
+        .card-stats { font-size: 0.7rem; text-align: center; font-family: 'Roboto Mono', monospace; margin-bottom: 0.3rem; }
+        .card-description { font-size: 0.65rem; text-align: center; color: #bdc3c7; font-style: italic; line-height: 1.2; }
         .top-bar { padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
         #cpu-pitcher-area .card { border-color: #e74c3c; }
         #cpu-pitcher-area .card-name { color: #ffcdd2; }
+        #player-pitcher-area .card { border-color: #3498db; }
+        #player-pitcher-area .card-name { color: #cde7ff; }
         .score-display { font-size: 3rem; font-weight: 700; font-family: 'Roboto Mono', monospace; color: #ffffff; background-color: rgba(0,0,0,0.3); padding: 0.5rem 2rem; border-radius: 10px; border: 1px solid #4a5a6a; }
+        .team-indicator { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.2rem; }
+        .team-indicator.away { color: #e74c3c; }
+        .team-indicator.home { color: #3498db; }
         .game-state-display { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
         .outs-display { display: flex; gap: 0.75rem; }
         .out-light { width: 20px; height: 20px; border-radius: 50%; background-color: #3a4a5a; border: 2px solid #5a6a7a; transition: all 0.3s ease; }
@@ -43,24 +49,30 @@
         .hand .card { cursor: pointer; }
         .hand .card:hover { transform: translateY(-15px) scale(1.05); border-color: #f1c40f; }
         .hand .card.selected { transform: translateY(-25px) scale(1.1); border-color: #2ecc71; box-shadow: 0 0 20px #2ecc71; }
+        .hand .card.effect-active { border-color: #9b59b6; box-shadow: 0 0 15px rgba(155, 89, 182, 0.6); }
+        .hand .card.effect-active::after { content: '✨'; position: absolute; top: -5px; left: -5px; font-size: 1rem; }
         .deck-area { text-align: center; }
-        .deck-area .card { background: #1a2a3a; border-style: dashed; }
+        .deck-area .card { background: #1a2a3a; border-style: dashed; cursor: default; }
         .deck-area p { margin-top: 0.5rem; font-weight: 600; font-family: 'Roboto Mono', monospace; }
-        .action-card {
-            border-color: #8e44ad; /* 給戰術卡一個紫色的邊框 */
-            background: #3a2a4a;   /* 和一個深紫色的背景 */
-        }
-        .action-card .card-name {
-            color: #c593e0;
-        }
+        .action-card { border-color: #8e44ad; background: #3a2a4a; }
+        .action-card .card-name { color: #c593e0; }
+        .pitcher-area { display: flex; flex-direction: column; align-items: center; gap: 0.5rem; }
+        #outcome-text { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); font-size: 1.2rem; font-weight: 600; color: #f39c12; text-align: center; background: rgba(0,0,0,0.7); padding: 0.5rem 1rem; border-radius: 8px; }
     </style>
 </head>
 <body>
     <div class="game-container">
         <div class="top-bar">
-            <div id="cpu-pitcher-area"></div>
-            <div class="score-display">
-                <span id="away-score">0</span> - <span id="home-score">0</span>
+            <div class="pitcher-area">
+                <div class="team-indicator away">客隊投手</div>
+                <div id="cpu-pitcher-area"></div>
+            </div>
+            <div>
+                <div class="team-indicator away" style="text-align: center;">客隊</div>
+                <div class="team-indicator home" style="text-align: center; margin-top: 0.5rem;">主隊</div>
+                <div class="score-display">
+                    <span id="away-score">0</span> - <span id="home-score">0</span>
+                </div>
             </div>
             <div class="game-state-display">
                 <div id="inning-display" class="inning-display"></div>
@@ -76,12 +88,16 @@
                 <div id="second-base" class="base"></div>
                 <div id="third-base" class="base"></div>
             </div>
-            <div id="outcome-text" class="absolute bottom-20 text-xl font-semibold text-gray-300"></div>
+            <div id="outcome-text"></div>
         </div>
         <div class="action-area">
             <button id="main-button" class="main-button">Play Ball</button>
         </div>
         <div class="bottom-area">
+            <div class="pitcher-area">
+                <div class="team-indicator home">主隊投手</div>
+                <div id="player-pitcher-area"></div>
+            </div>
             <div id="player-deck-area" class="deck-area">
                 <div class="card"></div>
                 <p>牌庫: <span id="player-deck-count">0</span></p>
