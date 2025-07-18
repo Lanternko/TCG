@@ -1,10 +1,12 @@
-// src/main.js - 增強版主遊戲邏輯
+// src/main.js - 綜合修復版本
 console.log('🎮 MyGO!!!!! TCG 主檔案載入中...');
 
 let CONFIG, TEAMS, createGameState, render;
 let gameInitialized = false;
 let draggedCard = null;
 let draggedCardIndex = -1;
+let awaitingTargetSelection = false;
+let pendingActionCard = null;
 
 async function initializeGame() {
   try {
@@ -51,7 +53,7 @@ function startGame() {
     const handlers = {
       select: (idx) => {
         console.log('🎯 選擇卡牌:', idx);
-        if (state.playerTurn) {
+        if (state.playerTurn && !awaitingTargetSelection) {
           state.selected = (state.selected === idx) ? -1 : idx;
           render(state, handlers);
         }
@@ -70,46 +72,25 @@ function startGame() {
         render(state, handlers);
       },
       
-      // 新增：拖拽處理
-      dragStart: (idx, card) => {
-        console.log('🎯 開始拖拽:', idx, card.name);
-        draggedCard = card;
-        draggedCardIndex = idx;
-        
-        // 添加拖拽中的視覺效果
-        const cardElement = document.querySelector(`[data-card-index="${idx}"]`);
-        if (cardElement) {
-          cardElement.classList.add('dragging');
+      // 壘包點擊處理（用於選擇目標）
+      baseClick: (baseIndex) => {
+        console.log('🎯 壘包點擊:', baseIndex);
+        if (awaitingTargetSelection && state.bases[baseIndex]) {
+          handleTargetSelection(baseIndex, state);
         }
       },
       
-      dragEnd: (target) => {
-        console.log('🎯 結束拖拽:', target);
-        if (draggedCard && draggedCardIndex !== -1) {
-          // 檢查是否拖拽到有效位置
-          if (target === 'field' || target === 'pitcher-area') {
-            // 執行卡牌效果
-            state.selected = draggedCardIndex;
-            runPlayerTurn(state);
-          }
-          
-          // 清理拖拽狀態
-          const cardElement = document.querySelector(`[data-card-index="${draggedCardIndex}"]`);
-          if (cardElement) {
-            cardElement.classList.remove('dragging');
-          }
-          
-          draggedCard = null;
-          draggedCardIndex = -1;
+      // 拖拽到打擊位置
+      dragToBatter: (cardIndex) => {
+        console.log('🎯 拖拽到打擊位置:', cardIndex);
+        if (state.playerTurn && !awaitingTargetSelection) {
+          state.selected = cardIndex;
+          runPlayerTurn(state);
         }
-        
-        render(state, handlers);
       }
     };
     
-    // 設置拖拽區域
     setupDragDropZones(handlers);
-    
     render(state, handlers);
     
     const mainButton = document.getElementById('main-button');
@@ -132,41 +113,26 @@ function startGame() {
 }
 
 function setupDragDropZones(handlers) {
-  // 設置投手區域作為拖拽目標
-  const pitcherArea = document.getElementById('player-pitcher-area');
-  if (pitcherArea) {
-    pitcherArea.addEventListener('dragover', (e) => {
+  // 設置打擊位置作為拖拽目標
+  const batterZone = document.getElementById('batter-zone');
+  if (batterZone) {
+    batterZone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      pitcherArea.classList.add('drag-over');
+      batterZone.classList.add('drag-over');
     });
     
-    pitcherArea.addEventListener('dragleave', () => {
-      pitcherArea.classList.remove('drag-over');
+    batterZone.addEventListener('dragleave', () => {
+      batterZone.classList.remove('drag-over');
     });
     
-    pitcherArea.addEventListener('drop', (e) => {
+    batterZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      pitcherArea.classList.remove('drag-over');
-      handlers.dragEnd('pitcher-area');
-    });
-  }
-  
-  // 設置中央區域作為拖拽目標
-  const centerField = document.querySelector('.center-field');
-  if (centerField) {
-    centerField.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      centerField.classList.add('drag-over');
-    });
-    
-    centerField.addEventListener('dragleave', () => {
-      centerField.classList.remove('drag-over');
-    });
-    
-    centerField.addEventListener('drop', (e) => {
-      e.preventDefault();
-      centerField.classList.remove('drag-over');
-      handlers.dragEnd('field');
+      batterZone.classList.remove('drag-over');
+      
+      const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      if (cardIndex !== -1) {
+        handlers.dragToBatter(cardIndex);
+      }
     });
   }
 }
@@ -182,8 +148,8 @@ function initDecks(state) {
     state.player.hand = [];
     state.player.pitcher = prepareCard(playerTeam.pitchers[0]);
     
-    // 修改：每回合抽兩張卡片
-    draw(state.player, Math.min(CONFIG.handSize, 2));
+    // 修復：起手 5 張卡
+    draw(state.player, 5);
     
     const cpuTeam = TEAMS.find(team => team.id === "NYY");
     state.cpu.team = cpuTeam;
@@ -221,29 +187,46 @@ function runPlayerTurn(state) {
     console.log('🎯 玩家回合:', card.name);
     
     if (card.type === 'batter') {
+      // 打者卡：進行打擊
       const result = simulateSimpleAtBat(card, state.cpu.activePitcher);
-      processSimpleOutcome(result, state);
+      processSimpleOutcome(result, state, card);
       
       const outcomeText = document.getElementById('outcome-text');
       if (outcomeText) {
         outcomeText.textContent = result.description;
       }
       
+      // 移除卡牌並抽 2 張
+      state.player.hand.splice(state.selected, 1);
+      state.player.discard.push(card);
+      draw(state.player, 2);
+      state.selected = -1;
+      
     } else if (card.type === 'action') {
-      const outcomeText = document.getElementById('outcome-text');
-      if (outcomeText) {
-        outcomeText.textContent = `${card.name} 戰術卡使用！效果已發動！`;
+      // 戰術卡：檢查是否需要選擇目標
+      if (needsTargetSelection(card)) {
+        awaitingTargetSelection = true;
+        pendingActionCard = card;
+        
+        const outcomeText = document.getElementById('outcome-text');
+        if (outcomeText) {
+          outcomeText.textContent = `選擇 ${card.name} 的目標...`;
+        }
+        
+        // 高亮可選目標
+        highlightValidTargets(card, state);
+        render(state, arguments.callee.caller.arguments[0]); // 傳遞 handlers
+        return;
+      } else {
+        // 直接執行戰術卡
+        executeActionCard(card, state);
+        
+        // 移除卡牌（戰術卡不抽卡）
+        state.player.hand.splice(state.selected, 1);
+        state.player.discard.push(card);
+        state.selected = -1;
       }
     }
-    
-    // 移除卡牌
-    state.player.hand.splice(state.selected, 1);
-    state.player.discard.push(card);
-    
-    // 修改：每回合抽兩張卡片
-    draw(state.player, 2);
-    
-    state.selected = -1;
     
     console.log('✅ 玩家回合完成，手牌數量:', state.player.hand.length);
     
@@ -254,6 +237,112 @@ function runPlayerTurn(state) {
   } catch (error) {
     console.error('❌ 玩家回合失敗:', error);
     showErrorMessage(`玩家回合失敗: ${error.message}`);
+  }
+}
+
+function needsTargetSelection(card) {
+  // 檢查卡牌是否需要選擇目標
+  const needsTarget = [
+    '一輩子',
+    '想成為人類',
+    '滿腦子想著自己'
+  ];
+  
+  return needsTarget.includes(card.name);
+}
+
+function highlightValidTargets(card, state) {
+  // 移除舊的高亮
+  document.querySelectorAll('.base').forEach(base => {
+    base.classList.remove('selectable-target');
+  });
+  
+  // 根據卡牌類型高亮目標
+  if (card.name === '一輩子') {
+    // 可以選擇任何壘上的我方角色
+    state.bases.forEach((baseCard, index) => {
+      if (baseCard) {
+        const baseElement = document.getElementById(`base-${index}`);
+        if (baseElement) {
+          baseElement.classList.add('selectable-target');
+        }
+      }
+    });
+  }
+}
+
+function handleTargetSelection(baseIndex, state) {
+  if (!pendingActionCard) return;
+  
+  const targetCard = state.bases[baseIndex];
+  if (!targetCard) return;
+  
+  console.log('🎯 目標選擇:', targetCard.name);
+  
+  // 執行戰術卡效果
+  executeActionCard(pendingActionCard, state, targetCard, baseIndex);
+  
+  // 移除卡牌
+  const cardIndex = state.player.hand.indexOf(pendingActionCard);
+  if (cardIndex !== -1) {
+    state.player.hand.splice(cardIndex, 1);
+    state.player.discard.push(pendingActionCard);
+  }
+  
+  // 重置選擇狀態
+  awaitingTargetSelection = false;
+  pendingActionCard = null;
+  state.selected = -1;
+  
+  // 移除高亮
+  document.querySelectorAll('.base').forEach(base => {
+    base.classList.remove('selectable-target');
+  });
+  
+  render(state, arguments.callee.caller.arguments[0]);
+}
+
+function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
+  let description = "";
+  
+  switch (card.name) {
+    case '一輩子':
+      if (targetCard) {
+        targetCard.locked = true;
+        description = `${targetCard.name} 被鎖定在壘上！`;
+      }
+      break;
+      
+    case "It's MyGO!!!!!":
+      // 為壘上的 MyGO 成員加成
+      state.bases.forEach(baseCard => {
+        if (baseCard && baseCard.band === 'MyGO!!!!!') {
+          baseCard.tempBonus = baseCard.tempBonus || {};
+          baseCard.tempBonus.power = (baseCard.tempBonus.power || 0) + 15;
+          baseCard.tempBonus.hitRate = (baseCard.tempBonus.hitRate || 0) + 15;
+          baseCard.tempBonus.contact = (baseCard.tempBonus.contact || 0) + 15;
+          baseCard.tempBonus.speed = (baseCard.tempBonus.speed || 0) + 15;
+        }
+      });
+      description = "MyGO!!!!! 成員全數值+15！";
+      break;
+      
+    case '想成為人類':
+      if (targetCard) {
+        // 移除負面狀態並設置速度為 99
+        targetCard.tempBonus = targetCard.tempBonus || {};
+        targetCard.tempBonus.speed = 99;
+        description = `${targetCard.name} 想成為人類！速度設為 99！`;
+      }
+      break;
+      
+    default:
+      description = `${card.name} 戰術卡使用！`;
+  }
+  
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = description;
   }
 }
 
@@ -287,12 +376,11 @@ function runCpuTurn(state) {
       
       cpuBatterIndex++;
       
-      // 使用簡化的渲染參數
       const simpleHandlers = {
         select: () => {},
         button: () => {},
-        dragStart: () => {},
-        dragEnd: () => {}
+        baseClick: () => {},
+        dragToBatter: () => {}
       };
       render(state, simpleHandlers);
     }, 1500);
@@ -305,6 +393,13 @@ function runCpuTurn(state) {
 
 function changeHalfInning(state) {
   try {
+    // 清除臨時加成
+    state.bases.forEach(baseCard => {
+      if (baseCard && baseCard.tempBonus) {
+        delete baseCard.tempBonus;
+      }
+    });
+    
     state.outs = 0;
     
     if (state.half === 'top') {
@@ -347,8 +442,8 @@ function changeHalfInning(state) {
     const simpleHandlers = {
       select: () => {},
       button: () => {},
-      dragStart: () => {},
-      dragEnd: () => {}
+      baseClick: () => {},
+      dragToBatter: () => {}
     };
     render(state, simpleHandlers);
     
@@ -376,11 +471,21 @@ function simulateSimpleAtBat(batter, pitcher) {
   }
 }
 
-function processSimpleOutcome(result, state) {
+function processSimpleOutcome(result, state, batterCard) {
   if (result.type === 'K' || result.type === 'OUT') {
     state.outs++;
   } else {
     state.score.home += result.points || 1;
+    
+    // 簡化的壘包邏輯：將打者放到相應壘包
+    if (result.type === '1B' || result.type === 'BB') {
+      state.bases[0] = batterCard;
+    } else if (result.type === '2B') {
+      state.bases[1] = batterCard;
+    } else if (result.type === '3B') {
+      state.bases[2] = batterCard;
+    }
+    // HR 不上壘
   }
 }
 
@@ -398,15 +503,26 @@ function prepareCard(cardData) {
   return card;
 }
 
+// 修復 OVR 計算
 function calculateBatterOVR(stats) {
   const w = CONFIG.ovrWeights.batter;
   const power = stats.power ?? 50;
   const hitRate = stats.hitRate ?? 50;
   const contact = stats.contact ?? 50;
   const speed = stats.speed ?? 50;
-  const score = power * w.power + hitRate * w.hitRate + contact * w.contact + speed * w.speed;
-  const ovr = Math.round(score * w.scale + w.base);
-  return Math.min(99, Math.max(40, ovr));
+  
+  // 修復：正規化到 0-100 範圍
+  const normalizedPower = Math.max(0, Math.min(100, power));
+  const normalizedHitRate = Math.max(0, Math.min(100, hitRate));
+  const normalizedContact = Math.max(0, Math.min(100, contact));
+  const normalizedSpeed = Math.max(0, Math.min(100, speed));
+  
+  const weightedAverage = (normalizedPower * w.power + normalizedHitRate * w.hitRate + 
+                          normalizedContact * w.contact + normalizedSpeed * w.speed) / 
+                         (w.power + w.hitRate + w.contact + w.speed);
+  
+  const ovr = Math.round(weightedAverage);
+  return Math.max(40, Math.min(99, ovr));
 }
 
 function calculatePitcherOVR(stats) {
@@ -415,9 +531,19 @@ function calculatePitcherOVR(stats) {
   const velocity = stats.velocity ?? 50;
   const control = stats.control ?? 50;
   const technique = stats.technique ?? 50;
-  const score = power * w.power + velocity * w.velocity + control * w.control + technique * w.technique;
-  const ovr = Math.round(score * w.scale + w.base);
-  return Math.min(99, Math.max(40, ovr));
+  
+  // 修復：正規化到 0-100 範圍
+  const normalizedPower = Math.max(0, Math.min(100, power));
+  const normalizedVelocity = Math.max(0, Math.min(100, velocity));
+  const normalizedControl = Math.max(0, Math.min(100, control));
+  const normalizedTechnique = Math.max(0, Math.min(100, technique));
+  
+  const weightedAverage = (normalizedPower * w.power + normalizedVelocity * w.velocity + 
+                          normalizedControl * w.control + normalizedTechnique * w.technique) / 
+                         (w.power + w.velocity + w.control + w.technique);
+  
+  const ovr = Math.round(weightedAverage);
+  return Math.max(40, Math.min(99, ovr));
 }
 
 function draw(player, numToDraw) {
@@ -428,8 +554,7 @@ function draw(player, numToDraw) {
       player.discard = [];
       shuffle(player.deck);
     }
-    // 修改：手牌上限檢查
-    if (player.hand.length < 7 && player.deck.length > 0) {
+    if (player.hand.length < 10 && player.deck.length > 0) {
       player.hand.push(player.deck.pop());
     }
   }

@@ -1,4 +1,4 @@
-// src/ui/ui.js - 增強的UI渲染系統
+// src/ui/ui.js - 增強的UI系統
 
 export function render(state, handlers) {
   try {
@@ -6,14 +6,16 @@ export function render(state, handlers) {
       playerTurn: state.playerTurn,
       selected: state.selected,
       handSize: state.player.hand.length,
-      outs: state.outs
+      outs: state.outs,
+      bases: state.bases.map(b => b ? b.name : null)
     });
     
     renderScore(state.score);
     renderOuts(state.outs);
     renderInning(state.currentInning, state.half);
-    renderBases(state.bases);
+    renderBases(state.bases, handlers.baseClick);
     renderPitchers(state.cpu.activePitcher, state.player.pitcher);
+    renderBatterZone(state);
     renderHand(state.player.hand, state.selected, handlers);
     renderDeckInfo(state.player);
     renderMainButton(state, handlers.button);
@@ -51,36 +53,74 @@ function renderInning(inning, half) {
   inningDisplay.textContent = `${inning}${inningSuffix} ${halfText}`;
 }
 
-function renderBases(bases) {
-  const baseElements = [
-    document.getElementById('first-base'),
-    document.getElementById('second-base'),
-    document.getElementById('third-base')
-  ];
+function renderBases(bases, baseClickHandler) {
+  const baseNames = ['first-base', 'second-base', 'third-base'];
   
-  baseElements.forEach((element, index) => {
-    if (!element) return;
+  bases.forEach((card, index) => {
+    const baseElement = document.getElementById(baseNames[index]);
+    if (!baseElement) return;
     
-    const card = bases[index];
-    const isOccupied = !!card;
-    const isLocked = card && card.locked;
+    baseElement.id = `base-${index}`;
+    baseElement.classList.toggle('occupied', !!card);
+    baseElement.classList.toggle('locked', card && card.locked);
     
-    element.classList.toggle('occupied', isOccupied);
-    element.classList.toggle('locked', isLocked);
-    
-    if (isOccupied) {
-      element.title = `${card.name} (${card.band || 'Unknown'})`;
+    if (card) {
+      // 顯示球員資訊
+      const playerInfo = document.createElement('div');
+      playerInfo.className = 'base-player-info';
+      playerInfo.innerHTML = `
+        <div class="player-name">${card.name}</div>
+        <div class="player-band">${card.band}</div>
+        ${card.locked ? '<div class="locked-indicator">🔒</div>' : ''}
+      `;
+      
+      baseElement.innerHTML = '';
+      baseElement.appendChild(playerInfo);
+      
+      // 綁定點擊事件
+      if (baseClickHandler) {
+        baseElement.onclick = () => baseClickHandler(index);
+      }
+      
+      // 顯示光環效果
+      if (card.effects && card.effects.aura) {
+        baseElement.classList.add('has-aura');
+        baseElement.title = `${card.name} - 光環: ${card.effects.aura.description}`;
+      }
+      
     } else {
-      element.title = '';
+      baseElement.innerHTML = `${index + 1}B`;
+      baseElement.onclick = null;
+      baseElement.title = '';
+      baseElement.classList.remove('has-aura');
     }
   });
+}
+
+function renderBatterZone(state) {
+  let batterZone = document.getElementById('batter-zone');
+  if (!batterZone) {
+    // 創建打擊區域
+    batterZone = document.createElement('div');
+    batterZone.id = 'batter-zone';
+    batterZone.className = 'batter-zone';
+    
+    const centerField = document.querySelector('.center-field');
+    if (centerField) {
+      centerField.appendChild(batterZone);
+    }
+  }
+  
+  batterZone.innerHTML = `
+    <div class="zone-label">打擊區</div>
+    <div class="zone-instruction">拖拽打者到這裡</div>
+  `;
 }
 
 function renderPitchers(cpuPitcher, playerPitcher) {
   const cpuPitcherArea = document.getElementById('cpu-pitcher-area');
   const playerPitcherArea = document.getElementById('player-pitcher-area');
   
-  // 渲染CPU投手（左側）
   if (cpuPitcherArea) {
     cpuPitcherArea.innerHTML = cpuPitcher ? `
       <div class="team-indicator away">客隊投手</div>
@@ -97,7 +137,6 @@ function renderPitchers(cpuPitcher, playerPitcher) {
     ` : '';
   }
   
-  // 渲染玩家投手（右側）
   if (playerPitcherArea) {
     playerPitcherArea.innerHTML = playerPitcher ? `
       <div class="team-indicator home">主隊投手</div>
@@ -127,8 +166,6 @@ function renderHand(hand, selectedIndex, handlers) {
   });
   
   handContainer.innerHTML = '';
-  
-  // 確保手牌容器使用單行布局
   handContainer.style.flexWrap = 'nowrap';
   handContainer.style.overflowX = 'auto';
   handContainer.style.maxWidth = '100%';
@@ -139,25 +176,25 @@ function renderHand(hand, selectedIndex, handlers) {
     cardEl.setAttribute('data-card-index', index);
     cardEl.draggable = true;
     
-    // 添加選中狀態
     if (index === selectedIndex) {
       cardEl.classList.add('selected');
     }
     
-    // 添加卡牌類型樣式
     if (card.type === 'action') {
       cardEl.classList.add('action-card');
     } else if (card.type === 'batter') {
       cardEl.classList.add('batter-card');
     }
     
-    // 構建卡牌內容
+    // 計算動態數值（包含臨時加成）
+    const dynamicStats = calculateDynamicStats(card);
+    
     let cardStats = '';
     if (card.type === 'batter') {
       cardStats = `
         <div class="card-stats">
-          POW: ${card.stats.power} HIT: ${card.stats.hitRate}<br>
-          CON: ${card.stats.contact} SPD: ${card.stats.speed}
+          POW: ${dynamicStats.power} HIT: ${dynamicStats.hitRate}<br>
+          CON: ${dynamicStats.contact} SPD: ${dynamicStats.speed}
         </div>
       `;
     }
@@ -166,6 +203,9 @@ function renderHand(hand, selectedIndex, handlers) {
     const instrument = card.instrument ? `<div class="card-instrument">🎵 ${card.instrument}</div>` : '';
     const band = card.band ? `<div class="card-band">${card.band}</div>` : '';
     
+    // 如果有臨時加成，顯示綠色數值
+    const bonusIndicator = hasTempBonus(card) ? '<div class="bonus-indicator">✨</div>' : '';
+    
     cardEl.innerHTML = `
       <div class="card-name">${card.name}</div>
       <div class="card-ovr">${card.ovr}</div>
@@ -173,6 +213,7 @@ function renderHand(hand, selectedIndex, handlers) {
       ${instrument}
       ${band}
       <div class="card-description">${description}</div>
+      ${bonusIndicator}
     `;
     
     // 點擊事件
@@ -189,10 +230,6 @@ function renderHand(hand, selectedIndex, handlers) {
       console.log('🎯 開始拖拽:', index, card.name);
       cardEl.classList.add('dragging');
       e.dataTransfer.setData('text/plain', index.toString());
-      
-      if (handlers.dragStart) {
-        handlers.dragStart(index, card);
-      }
     });
     
     cardEl.addEventListener('dragend', (e) => {
@@ -200,7 +237,6 @@ function renderHand(hand, selectedIndex, handlers) {
       cardEl.classList.remove('dragging');
     });
     
-    // 鍵盤支援
     cardEl.tabIndex = 0;
     cardEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
@@ -215,19 +251,41 @@ function renderHand(hand, selectedIndex, handlers) {
   });
 }
 
+function calculateDynamicStats(card) {
+  const baseStats = { ...card.stats };
+  
+  // 應用臨時加成
+  if (card.tempBonus) {
+    Object.keys(card.tempBonus).forEach(stat => {
+      if (baseStats[stat] !== undefined) {
+        baseStats[stat] += card.tempBonus[stat];
+      }
+    });
+  }
+  
+  // 確保數值在合理範圍內
+  Object.keys(baseStats).forEach(stat => {
+    baseStats[stat] = Math.max(0, Math.min(200, baseStats[stat]));
+  });
+  
+  return baseStats;
+}
+
+function hasTempBonus(card) {
+  return card.tempBonus && Object.keys(card.tempBonus).length > 0;
+}
+
 function renderMainButton(state, buttonHandler) {
   const button = document.getElementById('main-button');
   if (!button) return;
   
   const gameStarted = !!state.cpu.activePitcher;
   
-  // 移除舊的事件監聽器
   const newButton = button.cloneNode(true);
   button.parentNode.replaceChild(newButton, button);
   
-  // 調整按鈕位置，避免遮擋投手卡
   newButton.style.position = 'relative';
-  newButton.style.zIndex = '5';
+  newButton.style.zIndex = '100';
   
   if (state.over) {
     newButton.textContent = "比賽結束";
@@ -243,7 +301,6 @@ function renderMainButton(state, buttonHandler) {
     newButton.disabled = true;
   }
   
-  // 重新綁定事件
   if (buttonHandler) {
     newButton.addEventListener('click', (e) => {
       e.preventDefault();
@@ -311,10 +368,11 @@ function renderSpecialStates(state) {
   }
   
   // 檢查鎖定角色
-  if (state.lockedCharacters && state.lockedCharacters.length > 0) {
+  const lockedCount = state.bases.filter(card => card && card.locked).length;
+  if (lockedCount > 0) {
     const stateEl = document.createElement('div');
     stateEl.className = 'special-state locked';
-    stateEl.textContent = `🔒 鎖定 (${state.lockedCharacters.length}人)`;
+    stateEl.textContent = `🔒 鎖定 (${lockedCount}人)`;
     container.appendChild(stateEl);
   }
 }
@@ -322,7 +380,6 @@ function renderSpecialStates(state) {
 function getCardDescription(card) {
   if (!card) return "";
   
-  // 優先使用effects中的描述
   if (card.effects) {
     const effects = ['play', 'synergy', 'aura', 'death', 'passive'];
     for (const effectType of effects) {
@@ -332,12 +389,10 @@ function getCardDescription(card) {
     }
   }
   
-  // 戰術卡的預設描述
   if (card.type === 'action') {
     return card.rarity ? `${card.rarity} 戰術卡` : '戰術卡';
   }
   
-  // 根據稀有度或樂器顯示
   if (card.instrument) {
     return `${card.instrument} 演奏者`;
   }
@@ -345,6 +400,7 @@ function getCardDescription(card) {
   return '';
 }
 
+// 更新結果文字
 export function updateOutcomeText(message) {
   const outcomeText = document.getElementById('outcome-text');
   if (outcomeText) {
@@ -353,6 +409,7 @@ export function updateOutcomeText(message) {
   }
 }
 
+// 更新錯誤文字
 export function updateErrorText(message) {
   const outcomeText = document.getElementById('outcome-text');
   if (outcomeText) {
@@ -361,10 +418,10 @@ export function updateErrorText(message) {
   }
 }
 
+// 視覺效果
 export function addVisualEffect(type, target) {
   console.log(`✨ 視覺效果: ${type} -> ${target}`);
   
-  // 卡牌打出效果
   if (type === 'cardPlayed') {
     const targetElement = document.querySelector(target);
     if (targetElement) {
@@ -375,7 +432,6 @@ export function addVisualEffect(type, target) {
     }
   }
   
-  // 得分效果
   if (type === 'score') {
     const scoreElement = document.getElementById('home-score');
     if (scoreElement) {
@@ -387,78 +443,119 @@ export function addVisualEffect(type, target) {
   }
 }
 
-// 設置拖拽區域
-export function setupDragDropZones() {
-  // 投手區域作為拖拽目標
-  const pitcherArea = document.getElementById('player-pitcher-area');
-  if (pitcherArea) {
-    pitcherArea.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      pitcherArea.classList.add('drag-over');
-    });
-    
-    pitcherArea.addEventListener('dragleave', (e) => {
-      if (!pitcherArea.contains(e.relatedTarget)) {
-        pitcherArea.classList.remove('drag-over');
-      }
-    });
-    
-    pitcherArea.addEventListener('drop', (e) => {
-      e.preventDefault();
-      pitcherArea.classList.remove('drag-over');
-      
-      const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
-      console.log('🎯 卡牌拖拽到投手區域:', cardIndex);
-      
-      // 觸發自定義事件
-      const dropEvent = new CustomEvent('cardDropped', {
-        detail: { cardIndex, target: 'pitcher-area' }
-      });
-      document.dispatchEvent(dropEvent);
-    });
-  }
-  
-  // 中央區域作為拖拽目標
-  const centerField = document.querySelector('.center-field');
-  if (centerField) {
-    centerField.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      centerField.classList.add('drag-over');
-    });
-    
-    centerField.addEventListener('dragleave', (e) => {
-      if (!centerField.contains(e.relatedTarget)) {
-        centerField.classList.remove('drag-over');
-      }
-    });
-    
-    centerField.addEventListener('drop', (e) => {
-      e.preventDefault();
-      centerField.classList.remove('drag-over');
-      
-      const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
-      console.log('🎯 卡牌拖拽到中央區域:', cardIndex);
-      
-      // 觸發自定義事件
-      const dropEvent = new CustomEvent('cardDropped', {
-        detail: { cardIndex, target: 'center-field' }
-      });
-      document.dispatchEvent(dropEvent);
-    });
-  }
-}
-
 // 初始化UI
 export function initializeUI() {
   console.log('🎨 初始化UI系統...');
   
-  // 設置拖拽區域
-  setupDragDropZones();
-  
-  // 添加全域樣式
+  // 添加UI樣式
   const style = document.createElement('style');
   style.textContent = `
-    /* 拖拽相關樣式 */
+    /* 壘包球員資訊 */
+    .base-player-info {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-size: 0.6rem;
+      line-height: 1.1;
+    }
+    
+    .player-name {
+      font-weight: bold;
+      color: #2c3e50;
+      margin-bottom: 2px;
+    }
+    
+    .player-band {
+      color: #34495e;
+      font-size: 0.5rem;
+    }
+    
+    .locked-indicator {
+      color: #fff;
+      font-size: 0.8rem;
+      margin-top: 2px;
+    }
+    
+    .base.has-aura {
+      border-color: #f39c12 !important;
+      box-shadow: 0 0 20px rgba(243, 156, 18, 0.7) !important;
+    }
+    
+    .base.selectable-target {
+      border-color: #e74c3c !important;
+      box-shadow: 0 0 20px rgba(231, 76, 60, 0.7) !important;
+      cursor: pointer;
+      animation: targetPulse 1s infinite;
+    }
+    
+    @keyframes targetPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
+    }
+    
+    /* 打擊區域 */
+    .batter-zone {
+      width: 120px;
+      height: 170px;
+      border: 3px dashed #95a5a6;
+      border-radius: 10px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      background: rgba(149, 165, 166, 0.1);
+      transition: all 0.3s ease;
+      margin: 1rem;
+    }
+    
+    .batter-zone.drag-over {
+      border-color: #f1c40f;
+      background: rgba(241, 196, 15, 0.2);
+      transform: scale(1.05);
+    }
+    
+    .zone-label {
+      font-size: 0.8rem;
+      font-weight: bold;
+      color: #7f8c8d;
+      margin-bottom: 0.5rem;
+    }
+    
+    .zone-instruction {
+      font-size: 0.6rem;
+      color: #95a5a6;
+      text-align: center;
+      line-height: 1.2;
+    }
+    
+    /* 卡牌臨時加成指示器 */
+    .bonus-indicator {
+      position: absolute;
+      top: 5px;
+      left: 5px;
+      font-size: 0.8rem;
+      color: #f1c40f;
+      animation: sparkle 2s infinite;
+    }
+    
+    @keyframes sparkle {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.7; transform: scale(1.2); }
+    }
+    
+    /* 動態數值顯示 */
+    .card-stats.buffed {
+      color: #27ae60;
+      font-weight: bold;
+    }
+    
+    .card-stats.debuffed {
+      color: #e74c3c;
+    }
+    
+    /* 拖拽相關 */
     .card.dragging {
       opacity: 0.7;
       transform: rotate(5deg);
@@ -488,18 +585,12 @@ export function initializeUI() {
     /* 修復按鈕層級 */
     .action-area {
       position: relative !important;
-      z-index: 10 !important;
+      z-index: 50 !important;
     }
     
     .main-button {
       position: relative !important;
-      z-index: 11 !important;
-    }
-    
-    /* 投手卡片層級 */
-    .pitcher-card {
-      position: relative !important;
-      z-index: 1 !important;
+      z-index: 100 !important;
     }
     
     /* 視覺效果 */
@@ -522,65 +613,27 @@ export function initializeUI() {
       50% { transform: scale(1.2); color: #f1c40f; }
       100% { transform: scale(1); }
     }
-    
-    /* 響應式手牌調整 */
-    @media (max-width: 1200px) {
-      .hand .card {
-        min-width: 100px !important;
-        height: 140px !important;
-      }
-    }
-    
-    @media (max-width: 768px) {
-      .hand {
-        gap: 0.5rem !important;
-      }
-      
-      .hand .card {
-        min-width: 85px !important;
-        height: 120px !important;
-      }
-    }
   `;
   document.head.appendChild(style);
   
   console.log('✅ UI系統初始化完成');
 }
 
-// 手牌管理輔助函數
-export function adjustHandLayout(handSize) {
-  const handContainer = document.getElementById('player-hand');
-  if (!handContainer) return;
-  
-  // 根據手牌數量調整卡牌大小
-  const cards = handContainer.querySelectorAll('.card');
-  cards.forEach(card => {
-    if (handSize > 7) {
-      card.style.width = '100px';
-      card.style.height = '140px';
-    } else if (handSize > 5) {
-      card.style.width = '120px';
-      card.style.height = '170px';
-    } else {
-      card.style.width = '140px';
-      card.style.height = '200px';
-    }
-  });
-}
-
 // 清理函數
 export function cleanup() {
-  // 移除事件監聽器
-  const pitcherArea = document.getElementById('player-pitcher-area');
-  const centerField = document.querySelector('.center-field');
+  const elements = [
+    document.getElementById('batter-zone'),
+    ...document.querySelectorAll('.base'),
+    ...document.querySelectorAll('.card')
+  ];
   
-  if (pitcherArea) {
-    pitcherArea.replaceWith(pitcherArea.cloneNode(true));
-  }
-  
-  if (centerField) {
-    centerField.replaceWith(centerField.cloneNode(true));
-  }
+  elements.forEach(el => {
+    if (el) {
+      el.onclick = null;
+      el.ondragstart = null;
+      el.ondragend = null;
+    }
+  });
 }
 
 console.log('✅ UI模組載入完成');
