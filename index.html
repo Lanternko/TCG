@@ -10,465 +10,637 @@
     
     <!-- 內嵌CSS樣式 -->
     <style>
-        /* 這裡放入上面的CSS樣式 */
+        /* 修復布局問題的CSS樣式 */
+
+        /* 基本設定 */
         body { 
-          font-family: 'Inter', sans-serif; 
-          background: #1a2a3a; 
-          color: #f0f8ff; 
-          margin: 0; 
-          padding: 0;
-          height: 100vh; 
-          display: flex; 
-          justify-content: center; 
-          align-items: center; 
+        font-family: 'Inter', sans-serif; 
+        background: #1a2a3a; 
+        color: #f0f8ff; 
+        margin: 0; 
+        padding: 0;
+        height: 100vh; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
         }
 
         .game-container { 
-          width: 100vw; 
-          height: 100vh; 
-          max-width: 1400px; 
-          max-height: 1000px; 
-          display: flex; 
-          flex-direction: column; 
-          background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); 
-          border-radius: 20px; 
-          box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); 
-          border: 2px solid #4a5a6a; 
-          overflow: hidden;
+        width: 100vw; 
+        height: 100vh; 
+        max-width: 1400px; 
+        max-height: 1000px; 
+        display: flex; 
+        flex-direction: column; 
+        background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); 
+        border-radius: 20px; 
+        box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); 
+        border: 2px solid #4a5a6a; 
+        overflow: hidden;
         }
 
-        .card { 
-          width: 140px; 
-          height: 200px; 
-          background: linear-gradient(145deg, #2c3e50, #34495e); 
-          border: 2px solid #7f8c8d; 
-          border-radius: 12px; 
-          padding: 0.8rem; 
-          display: flex; 
-          flex-direction: column; 
-          justify-content: space-between; 
-          transition: all 0.3s ease; 
-          position: relative; 
-          box-shadow: 0 6px 12px rgba(0,0,0,0.4); 
-          cursor: pointer;
-          user-select: none;
-        }
-
-        .card:hover { 
-          transform: translateY(-5px) scale(1.03); 
-          border-color: #f1c40f; 
-          box-shadow: 0 8px 20px rgba(0,0,0,0.6);
-        }
-
-        .card.selected { 
-          border-color: #e74c3c; 
-          box-shadow: 0 0 20px #e74c3c; 
-          transform: translateY(-8px) scale(1.05);
-        }
-
-        .card.action-card { 
-          border-color: #9b59b6; 
-          background: linear-gradient(145deg, #8e44ad, #9b59b6);
-        }
-
-        .card.batter-card { 
-          border-color: #3498db; 
-        }
-
-        .card.pitcher-card { 
-          width: 120px;
-          height: 180px;
-          border-color: #e74c3c;
-        }
-
-        .card-name { 
-          font-weight: 700; 
-          font-size: 1rem; 
-          text-align: center; 
-          margin-bottom: 0.5rem; 
-          line-height: 1.2;
-        }
-
-        .card-ovr { 
-          position: absolute; 
-          top: 8px; 
-          right: 8px; 
-          font-size: 0.9rem; 
-          font-weight: bold; 
-          background-color: rgba(0,0,0,0.8); 
-          padding: 3px 8px; 
-          border-radius: 6px; 
-          color: #ffd700; 
-          border: 1px solid #ffd700;
-        }
-
-        .card-stats { 
-          font-size: 0.75rem; 
-          text-align: center; 
-          font-family: 'Roboto Mono', monospace; 
-          margin-bottom: 0.5rem; 
-          line-height: 1.3;
-        }
-
-        .card-description { 
-          font-size: 0.7rem; 
-          text-align: center; 
-          color: #bdc3c7; 
-          font-style: italic; 
-          line-height: 1.3; 
-          flex-grow: 1; 
-          overflow: hidden; 
-          display: -webkit-box;
-          -webkit-line-clamp: 4;
-          -webkit-box-orient: vertical;
-        }
-
-        .card-instrument { 
-          font-size: 0.65rem; 
-          text-align: center; 
-          color: #f39c12; 
-          font-weight: bold; 
-          margin-bottom: 0.3rem; 
-          background: rgba(243, 156, 18, 0.1);
-          padding: 2px 6px;
-          border-radius: 4px;
-        }
-
-        .card-band { 
-          font-size: 0.65rem; 
-          text-align: center; 
-          color: #3498db; 
-          font-weight: bold; 
-          margin-bottom: 0.3rem;
-        }
-
+        /* 頂部狀態欄 */
         .top-bar { 
-          padding: 1.5rem; 
-          display: flex; 
-          justify-content: space-between; 
-          align-items: center; 
-          background: rgba(0,0,0,0.2);
-          border-bottom: 1px solid #4a5a6a;
+        padding: 1rem; 
+        display: flex; 
+        justify-content: space-between; 
+        align-items: center; 
+        background: rgba(0,0,0,0.2);
+        border-bottom: 1px solid #4a5a6a;
+        position: relative;
+        z-index: 100;
         }
 
         .score-display { 
-          font-size: 3.5rem; 
-          font-weight: 700; 
-          font-family: 'Roboto Mono', monospace; 
-          color: #ffffff; 
-          background-color: rgba(0,0,0,0.4); 
-          padding: 1rem 2.5rem; 
-          border-radius: 15px; 
-          border: 2px solid #4a5a6a; 
-          text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        font-size: 3rem; 
+        font-weight: 700; 
+        font-family: 'Roboto Mono', monospace; 
+        color: #ffffff; 
+        background-color: rgba(0,0,0,0.4); 
+        padding: 0.8rem 2rem; 
+        border-radius: 15px; 
+        border: 2px solid #4a5a6a; 
+        text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
         .game-state-display { 
-          display: flex; 
-          flex-direction: column; 
-          align-items: flex-end; 
-          gap: 1rem; 
+        display: flex; 
+        flex-direction: column; 
+        align-items: flex-end; 
+        gap: 0.8rem; 
         }
 
         .outs-display { 
-          display: flex; 
-          gap: 1rem; 
+        display: flex; 
+        gap: 0.8rem; 
         }
 
         .out-light { 
-          width: 24px; 
-          height: 24px; 
-          border-radius: 50%; 
-          background-color: #3a4a5a; 
-          border: 3px solid #5a6a7a; 
-          transition: all 0.3s ease; 
+        width: 20px; 
+        height: 20px; 
+        border-radius: 50%; 
+        background-color: #3a4a5a; 
+        border: 2px solid #5a6a7a; 
+        transition: all 0.3s ease; 
         }
 
         .out-light.active { 
-          background-color: #e74c3c; 
-          border-color: #c0392b;
-          box-shadow: 0 0 15px #e74c3c; 
+        background-color: #e74c3c; 
+        border-color: #c0392b;
+        box-shadow: 0 0 12px #e74c3c; 
         }
 
         .inning-display { 
-          font-size: 1.6rem; 
-          font-weight: 600; 
-          color: #bdc3c7; 
-          text-align: right;
+        font-size: 1.4rem; 
+        font-weight: 600; 
+        color: #bdc3c7; 
+        text-align: right;
         }
 
+        /* 主要遊戲區域 - 修復層級問題 */
         .field { 
-          flex-grow: 1; 
-          display: grid;
-          grid-template-columns: 200px 1fr 200px;
-          grid-template-rows: 1fr;
-          gap: 1rem;
-          padding: 1rem; 
-          position: relative;
-          overflow: hidden;
+        flex-grow: 1; 
+        display: grid;
+        grid-template-columns: 180px 1fr 180px;
+        grid-template-rows: 1fr;
+        gap: 1rem;
+        padding: 1rem; 
+        position: relative;
+        overflow: hidden;
+        z-index: 1; /* 確保低於按鈕層級 */
         }
 
-        #cpu-pitcher-area {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
-        }
-
-        #player-pitcher-area {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 0.5rem;
+        /* 投手區域 */
+        #cpu-pitcher-area, #player-pitcher-area {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        position: relative;
+        z-index: 2; /* 投手卡片層級 */
         }
 
         .center-field {
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          justify-content: center;
-          gap: 2rem;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 1.5rem;
+        position: relative;
+        z-index: 2;
         }
 
+        /* 壘包區域 */
         .bases-container { 
-          display: flex; 
-          gap: 2rem; 
-          align-items: center;
-          justify-content: center;
+        display: flex; 
+        gap: 1.5rem; 
+        align-items: center;
+        justify-content: center;
         }
 
         .base { 
-          width: 60px; 
-          height: 60px; 
-          background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)); 
-          border: 3px solid #7f8c8d; 
-          border-radius: 12px; 
-          transition: all 0.3s ease; 
-          font-family: 'Roboto Mono', monospace; 
-          display: flex; 
-          align-items: center; 
-          justify-content: center; 
-          color: #7f8c8d; 
-          font-weight: bold; 
-          font-size: 0.9rem;
-          cursor: pointer;
+        width: 50px; 
+        height: 50px; 
+        background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)); 
+        border: 2px solid #7f8c8d; 
+        border-radius: 10px; 
+        transition: all 0.3s ease; 
+        font-family: 'Roboto Mono', monospace; 
+        display: flex; 
+        align-items: center; 
+        justify-content: center; 
+        color: #7f8c8d; 
+        font-weight: bold; 
+        font-size: 0.8rem;
+        cursor: pointer;
         }
 
         .base.occupied { 
-          background: linear-gradient(145deg, #f1c40f, #f39c12); 
-          border-color: #e67e22; 
-          box-shadow: 0 0 20px rgba(241, 196, 15, 0.6); 
-          color: #2c3e50; 
-          font-weight: bold;
+        background: linear-gradient(145deg, #f1c40f, #f39c12); 
+        border-color: #e67e22; 
+        box-shadow: 0 0 15px rgba(241, 196, 15, 0.5); 
+        color: #2c3e50; 
         }
 
         .base.locked { 
-          background: linear-gradient(145deg, #e74c3c, #c0392b); 
-          border-color: #a93226; 
-          box-shadow: 0 0 20px rgba(231, 76, 60, 0.6); 
-          color: #fff; 
-          animation: pulse 2s infinite;
+        background: linear-gradient(145deg, #e74c3c, #c0392b); 
+        border-color: #a93226; 
+        box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); 
+        color: #fff; 
+        animation: pulse 2s infinite;
         }
 
         @keyframes pulse {
-          0%, 100% { transform: scale(1); }
-          50% { transform: scale(1.05); }
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.05); }
         }
 
-        #active-effects-display { 
-          width: 90%; 
-          max-width: 600px;
-          text-align: center; 
-          color: #f1c40f; 
-          font-size: 0.85rem; 
-          min-height: 50px; 
-          background: rgba(0,0,0,0.4); 
-          border-radius: 10px; 
-          padding: 1rem; 
-          display: flex; 
-          justify-content: center; 
-          flex-wrap: wrap; 
-          gap: 0.5rem; 
-          align-items: center; 
-          border: 1px solid #4a5a6a;
+        /* 卡牌基本樣式 */
+        .card { 
+        width: 120px; 
+        height: 170px; 
+        background: linear-gradient(145deg, #2c3e50, #34495e); 
+        border: 2px solid #7f8c8d; 
+        border-radius: 10px; 
+        padding: 0.6rem; 
+        display: flex; 
+        flex-direction: column; 
+        justify-content: space-between; 
+        transition: all 0.3s ease; 
+        position: relative; 
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
+        cursor: pointer;
+        user-select: none;
+        }
+
+        .card:hover { 
+        transform: translateY(-3px) scale(1.02); 
+        border-color: #f1c40f; 
+        box-shadow: 0 6px 15px rgba(0,0,0,0.5);
+        }
+
+        .card.selected { 
+        border-color: #e74c3c; 
+        box-shadow: 0 0 15px #e74c3c; 
+        transform: translateY(-5px) scale(1.05);
+        }
+
+        .card.action-card { 
+        border-color: #9b59b6; 
+        background: linear-gradient(145deg, #8e44ad, #9b59b6);
+        }
+
+        .card.batter-card { 
+        border-color: #3498db; 
+        }
+
+        .card.pitcher-card { 
+        width: 110px;
+        height: 150px;
+        border-color: #e74c3c;
+        }
+
+        /* 卡牌內容 */
+        .card-name { 
+        font-weight: 700; 
+        font-size: 0.85rem; 
+        text-align: center; 
+        margin-bottom: 0.4rem; 
+        line-height: 1.1;
+        }
+
+        .card-ovr { 
+        position: absolute; 
+        top: 5px; 
+        right: 5px; 
+        font-size: 0.8rem; 
+        font-weight: bold; 
+        background-color: rgba(0,0,0,0.8); 
+        padding: 2px 6px; 
+        border-radius: 4px; 
+        color: #ffd700; 
+        border: 1px solid #ffd700;
+        }
+
+        .card-stats { 
+        font-size: 0.7rem; 
+        text-align: center; 
+        font-family: 'Roboto Mono', monospace; 
+        margin-bottom: 0.4rem; 
+        line-height: 1.2;
+        }
+
+        .card-description { 
+        font-size: 0.65rem; 
+        text-align: center; 
+        color: #bdc3c7; 
+        font-style: italic; 
+        line-height: 1.2; 
+        flex-grow: 1; 
+        overflow: hidden; 
+        display: -webkit-box;
+        -webkit-line-clamp: 3;
+        -webkit-box-orient: vertical;
+        }
+
+        .card-instrument { 
+        font-size: 0.6rem; 
+        text-align: center; 
+        color: #f39c12; 
+        font-weight: bold; 
+        margin-bottom: 0.2rem; 
+        background: rgba(243, 156, 18, 0.1);
+        padding: 1px 4px;
+        border-radius: 3px;
+        }
+
+        .card-band { 
+        font-size: 0.6rem; 
+        text-align: center; 
+        color: #3498db; 
+        font-weight: bold; 
+        margin-bottom: 0.2rem;
+        }
+        
+        /* 輔助類別 */
+        .hidden { display: none !important; }
+        .visible { display: block !important; }
+
+        /* 選擇器狀態 */
+        .selectable {
+        cursor: pointer;
+        transition: all 0.3s ease;
+        }
+
+        .selectable:hover {
+        transform: scale(1.02);
+        filter: brightness(1.1);
+        }
+
+        .disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
+        pointer-events: none;
+        }
+
+        /* 高亮效果 */
+        .highlight {
+        border: 2px solid #f1c40f !important;
+        box-shadow: 0 0 12px rgba(241, 196, 15, 0.5) !important;
+        }
+
+        .success {
+        border: 2px solid #27ae60 !important;
+        box-shadow: 0 0 12px rgba(39, 174, 96, 0.5) !important;
+        }
+
+        .warning {
+        border: 2px solid #e67e22 !important;
+        box-shadow: 0 0 12px rgba(230, 126, 34, 0.5) !important;
+        }
+
+        .danger {
+        border: 2px solid #e74c3c !important;
+        box-shadow: 0 0 12px rgba(231, 76, 60, 0.5) !important;
+        } 
+        
+        /* 活躍效果顯示 - 修正處 */
+        #active-effects-display {
+        font-size: 0.8rem; 
+        min-height: 40px; 
+        background: rgba(0,0,0,0.4); 
+        border-radius: 8px; 
+        padding: 0.8rem; 
+        display: flex; 
+        justify-content: center; 
+        flex-wrap: wrap; 
+        gap: 0.5rem; 
+        align-items: center; 
+        border: 1px solid #4a5a6a;
+        width: 85%; 
+        max-width: 500px;
+        text-align: center; 
+        color: #f1c40f; 
+        margin: 2rem;
         }
 
         #active-effects-display .effect { 
-          background: linear-gradient(145deg, rgba(0,0,0,0.6), rgba(0,0,0,0.4)); 
-          padding: 4px 10px; 
-          border-radius: 6px; 
-          border: 1px solid #f1c40f; 
-          font-size: 0.75rem;
-          white-space: nowrap;
+        background: linear-gradient(145deg, rgba(0,0,0,0.6), rgba(0,0,0,0.4)); 
+        padding: 3px 8px; 
+        border-radius: 5px; 
+        border: 1px solid #f1c40f; 
+        font-size: 0.7rem;
+        white-space: nowrap;
         }
 
+        /* 特殊狀態 */
         .special-states { 
-          position: absolute; 
-          top: 15px; 
-          left: 15px; 
-          display: flex; 
-          flex-direction: column; 
-          gap: 8px; 
-          z-index: 10;
+        position: absolute; 
+        top: 10px; 
+        left: 10px; 
+        display: flex; 
+        flex-direction: column; 
+        gap: 6px; 
+        z-index: 20;
         }
 
         .special-state { 
-          background: rgba(0,0,0,0.8); 
-          padding: 6px 12px; 
-          border-radius: 8px; 
-          font-size: 0.8rem; 
-          font-weight: bold;
-          border: 2px solid;
-          backdrop-filter: blur(4px);
+        background: rgba(0,0,0,0.85); 
+        padding: 4px 8px; 
+        border-radius: 6px; 
+        font-size: 0.75rem; 
+        font-weight: bold;
+        border: 1px solid;
+        backdrop-filter: blur(2px);
         }
 
         .special-state.mygo-synergy { 
-          color: #3498db; 
-          border-color: #3498db;
-          box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+        color: #3498db; 
+        border-color: #3498db;
         }
 
         .special-state.mujica-synergy { 
-          color: #9b59b6; 
-          border-color: #9b59b6;
-          box-shadow: 0 0 10px rgba(155, 89, 182, 0.3);
+        color: #9b59b6; 
+        border-color: #9b59b6;
         }
 
+        /* 結果文字 */
         #outcome-text { 
-          position: absolute; 
-          bottom: 20px; 
-          left: 50%; 
-          transform: translateX(-50%); 
-          font-size: 1.3rem; 
-          font-weight: 600; 
-          color: #f39c12; 
-          text-align: center; 
-          background: rgba(0,0,0,0.8); 
-          padding: 1rem 2rem; 
-          border-radius: 10px; 
-          max-width: 80%; 
-          word-wrap: break-word; 
-          border: 1px solid #4a5a6a;
-          backdrop-filter: blur(4px);
+        position: absolute; 
+        bottom: 15px; 
+        left: 50%; 
+        transform: translateX(-50%); 
+        font-size: 1.1rem; 
+        font-weight: 600; 
+        color: #f39c12; 
+        text-align: center; 
+        background: rgba(0,0,0,0.8); 
+        padding: 0.8rem 1.5rem; 
+        border-radius: 8px; 
+        max-width: 75%; 
+        word-wrap: break-word; 
+        border: 1px solid #4a5a6a;
+        backdrop-filter: blur(2px);
+        z-index: 10;
         }
 
+        /* 操作區域 - 修復層級問題 */
         .action-area { 
-          padding: 1.5rem; 
-          display: flex; 
-          justify-content: center; 
-          align-items: center; 
-          gap: 1rem; 
-          background: rgba(0,0,0,0.1);
-          border-top: 1px solid #4a5a6a;
+        padding: 1.2rem; 
+        display: flex; 
+        justify-content: center; 
+        align-items: center; 
+        gap: 1rem; 
+        background: rgba(0,0,0,0.2);
+        border-top: 1px solid #4a5a6a;
+        position: relative;
+        z-index: 50; /* 確保按鈕在最上層 */
         }
 
         .main-button { 
-          padding: 1.2rem 4rem; 
-          font-size: 1.6rem; 
-          font-weight: 700; 
-          color: white; 
-          background: linear-gradient(145deg, #3498db, #2980b9); 
-          border: none; 
-          border-radius: 18px; 
-          cursor: pointer; 
-          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); 
-          transition: all 0.3s ease; 
-          text-transform: uppercase;
-          letter-spacing: 1px;
+        padding: 1rem 3rem; 
+        font-size: 1.4rem; 
+        font-weight: 700; 
+        color: white; 
+        background: linear-gradient(145deg, #3498db, #2980b9); 
+        border: none; 
+        border-radius: 15px; 
+        cursor: pointer; 
+        box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); 
+        transition: all 0.3s ease; 
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        position: relative;
+        z-index: 100; /* 最高層級 */
         }
 
         .main-button:hover:not(:disabled) { 
-          background: linear-gradient(145deg, #2980b9, #3498db); 
-          transform: translateY(-3px); 
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+        background: linear-gradient(145deg, #2980b9, #3498db); 
+        transform: translateY(-2px); 
+        box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
         }
 
         .main-button:disabled { 
-          background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
-          cursor: not-allowed; 
-          transform: none; 
-          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
+        cursor: not-allowed; 
+        transform: none; 
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
+        /* 底部區域 - 修復手牌排列問題 */
         .bottom-area { 
-          display: flex; 
-          justify-content: space-between; 
-          align-items: flex-end; 
-          padding: 2rem; 
-          background: rgba(0, 0, 0, 0.3); 
-          border-top: 2px solid #4a5a6a; 
-          min-height: 250px;
+        display: flex; 
+        justify-content: space-between; 
+        align-items: flex-end; 
+        padding: 1.5rem; 
+        background: rgba(0, 0, 0, 0.3); 
+        border-top: 2px solid #4a5a6a; 
+        min-height: 210px;
+        position: relative;
+        z-index: 10;
         }
 
+        /* 手牌區域 - 修復單行排列 */
         .hand { 
-          display: flex; 
-          justify-content: center; 
-          align-items: center; 
-          gap: 1rem; 
-          min-height: 220px; 
-          flex-wrap: wrap;
-          max-width: 800px;
+        display: flex !important; 
+        flex-direction: row !important;
+        flex-wrap: nowrap !important;
+        justify-content: center; 
+        align-items: center; 
+        gap: 0.8rem; 
+        min-height: 180px; 
+        overflow-x: auto;
+        overflow-y: hidden;
+        max-width: 70%;
+        padding: 0 0.5rem;
+        position: relative;
+        z-index: 5;
+        }
+
+        .hand::-webkit-scrollbar {
+        height: 4px;
+        }
+
+        .hand::-webkit-scrollbar-thumb {
+        background: rgba(255, 255, 255, 0.3);
+        border-radius: 2px;
+        }
+
+        .hand .card { 
+        flex-shrink: 0;
+        min-width: 120px;
+        transition: all 0.3s ease;
         }
 
         .hand .card:hover { 
-          transform: translateY(-20px) scale(1.08); 
-          border-color: #f1c40f; 
-          z-index: 10;
+        transform: translateY(-15px) scale(1.05); 
+        border-color: #f1c40f; 
+        z-index: 15;
         }
 
         .hand .card.selected {
-          transform: translateY(-25px) scale(1.1);
-          z-index: 20;
+        transform: translateY(-20px) scale(1.08);
+        z-index: 20;
         }
 
+        /* 牌組資訊 */
         .deck-area { 
-          text-align: center; 
-          min-width: 100px; 
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          gap: 0.5rem;
+        text-align: center; 
+        min-width: 80px; 
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.4rem;
+        position: relative;
+        z-index: 5;
         }
 
         .deck-area p { 
-          margin: 0; 
-          font-size: 1rem; 
-          color: #bdc3c7; 
-          font-weight: 600;
+        margin: 0; 
+        font-size: 0.9rem; 
+        color: #bdc3c7; 
+        font-weight: 600;
         }
 
         .deck-count { 
-          font-size: 1.8rem; 
-          font-weight: bold; 
-          color: #f1c40f; 
-          background: rgba(0,0,0,0.3);
-          padding: 0.5rem 1rem;
-          border-radius: 8px;
-          border: 1px solid #4a5a6a;
-          min-width: 50px;
-          text-align: center;
+        font-size: 1.5rem; 
+        font-weight: bold; 
+        color: #f1c40f; 
+        background: rgba(0,0,0,0.3);
+        padding: 0.4rem 0.8rem;
+        border-radius: 6px;
+        border: 1px solid #4a5a6a;
+        min-width: 40px;
+        text-align: center;
         }
 
+        /* 隊伍指示器 */
         .team-indicator { 
-          font-size: 0.9rem; 
-          font-weight: 600; 
-          margin-bottom: 0.5rem; 
-          text-align: center; 
-          padding: 0.3rem 0.8rem;
-          border-radius: 6px;
-          background: rgba(0,0,0,0.3);
+        font-size: 0.8rem; 
+        font-weight: 600; 
+        margin-bottom: 0.4rem; 
+        text-align: center; 
+        padding: 0.2rem 0.6rem;
+        border-radius: 4px;
+        background: rgba(0,0,0,0.3);
         }
 
         .team-indicator.away { 
-          color: #e74c3c; 
-          border: 1px solid #e74c3c;
+        color: #e74c3c; 
+        border: 1px solid #e74c3c;
         }
 
         .team-indicator.home { 
-          color: #3498db; 
-          border: 1px solid #3498db;
+        color: #3498db; 
+        border: 1px solid #3498db;
+        }
+
+        /* 拖拽相關樣式 */
+        .card.dragging {
+        opacity: 0.7;
+        transform: rotate(3deg);
+        z-index: 1000;
+        }
+
+        .drag-over {
+        border: 2px dashed #f1c40f !important;
+        background-color: rgba(241, 196, 15, 0.1) !important;
+        }
+
+        /* 視覺效果 */
+        .card-played-effect {
+        animation: cardPlayedPulse 1s ease-out;
+        }
+
+        @keyframes cardPlayedPulse {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.1); box-shadow: 0 0 25px #f1c40f; }
+        100% { transform: scale(1); }
+        }
+
+        .score-increase {
+        animation: scoreIncrease 1s ease-out;
+        }
+
+        @keyframes scoreIncrease {
+        0% { transform: scale(1); }
+        50% { transform: scale(1.15); color: #f1c40f; }
+        100% { transform: scale(1); }
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 1200px) {
+        .field {
+            grid-template-columns: 150px 1fr 150px;
+        }
+        
+        .card {
+            width: 110px;
+            height: 155px;
+        }
+        
+        .card.pitcher-card {
+            width: 95px;
+            height: 135px;
+        }
+        
+        .hand .card {
+            min-width: 110px;
+        }
+        }
+
+        @media (max-width: 768px) {
+        .field {
+            grid-template-columns: 1fr;
+            grid-template-rows: auto 1fr auto;
+        }
+        
+        #cpu-pitcher-area {
+            grid-row: 1;
+        }
+        
+        .center-field {
+            grid-row: 2;
+        }
+        
+        #player-pitcher-area {
+            grid-row: 3;
+        }
+        
+        .hand {
+            gap: 0.5rem;
+            max-width: 85%;
+        }
+        
+        .card {
+            width: 95px;
+            height: 135px;
+        }
+        
+        .hand .card {
+            min-width: 95px;
+        }
         }
 
         .loading { 
@@ -524,6 +696,7 @@
             height: 150px;
           }
         }
+
     </style>
 </head>
 <body>

@@ -1,8 +1,5 @@
-// src/ui/ui.js - 優化的UI渲染系統
+// src/ui/ui.js - 增強的UI渲染系統
 
-/**
- * 主渲染函數
- */
 export function render(state, handlers) {
   try {
     console.log('🎨 開始渲染UI...', {
@@ -17,7 +14,7 @@ export function render(state, handlers) {
     renderInning(state.currentInning, state.half);
     renderBases(state.bases);
     renderPitchers(state.cpu.activePitcher, state.player.pitcher);
-    renderHand(state.player.hand, state.selected, handlers.select, state);
+    renderHand(state.player.hand, state.selected, handlers);
     renderDeckInfo(state.player);
     renderMainButton(state, handlers.button);
     renderActiveEffects(state.activeEffects);
@@ -30,9 +27,6 @@ export function render(state, handlers) {
   }
 }
 
-/**
- * 渲染分數
- */
 function renderScore(score) {
   const awayScore = document.getElementById('away-score');
   const homeScore = document.getElementById('home-score');
@@ -41,9 +35,6 @@ function renderScore(score) {
   if (homeScore) homeScore.textContent = score.home;
 }
 
-/**
- * 渲染出局燈
- */
 function renderOuts(outs) {
   const outLights = document.querySelectorAll('.out-light');
   outLights.forEach((light, index) => {
@@ -51,9 +42,6 @@ function renderOuts(outs) {
   });
 }
 
-/**
- * 渲染局數
- */
 function renderInning(inning, half) {
   const inningDisplay = document.getElementById('inning-display');
   if (!inningDisplay) return;
@@ -63,9 +51,6 @@ function renderInning(inning, half) {
   inningDisplay.textContent = `${inning}${inningSuffix} ${halfText}`;
 }
 
-/**
- * 渲染壘包
- */
 function renderBases(bases) {
   const baseElements = [
     document.getElementById('first-base'),
@@ -91,9 +76,6 @@ function renderBases(bases) {
   });
 }
 
-/**
- * 渲染投手卡（左右分佈）
- */
 function renderPitchers(cpuPitcher, playerPitcher) {
   const cpuPitcherArea = document.getElementById('cpu-pitcher-area');
   const playerPitcherArea = document.getElementById('player-pitcher-area');
@@ -134,24 +116,28 @@ function renderPitchers(cpuPitcher, playerPitcher) {
   }
 }
 
-/**
- * 渲染手牌（修復點擊事件）
- */
-function renderHand(hand, selectedIndex, selectHandler, state) {
+function renderHand(hand, selectedIndex, handlers) {
   const handContainer = document.getElementById('player-hand');
   if (!handContainer) return;
   
   console.log('🎯 渲染手牌:', {
     handSize: hand.length,
     selected: selectedIndex,
-    hasSelectHandler: !!selectHandler
+    hasSelectHandler: !!handlers.select
   });
   
   handContainer.innerHTML = '';
-
+  
+  // 確保手牌容器使用單行布局
+  handContainer.style.flexWrap = 'nowrap';
+  handContainer.style.overflowX = 'auto';
+  handContainer.style.maxWidth = '100%';
+  
   hand.forEach((card, index) => {
     const cardEl = document.createElement('div');
     cardEl.className = 'card hand-card';
+    cardEl.setAttribute('data-card-index', index);
+    cardEl.draggable = true;
     
     // 添加選中狀態
     if (index === selectedIndex) {
@@ -189,22 +175,38 @@ function renderHand(hand, selectedIndex, selectHandler, state) {
       <div class="card-description">${description}</div>
     `;
     
-    // 重要：綁定點擊事件
+    // 點擊事件
     cardEl.addEventListener('click', (e) => {
       e.preventDefault();
       console.log('🎯 卡牌點擊:', index, card.name);
-      if (selectHandler) {
-        selectHandler(index);
+      if (handlers.select) {
+        handlers.select(index);
       }
     });
     
-    // 添加鍵盤支援
+    // 拖拽事件
+    cardEl.addEventListener('dragstart', (e) => {
+      console.log('🎯 開始拖拽:', index, card.name);
+      cardEl.classList.add('dragging');
+      e.dataTransfer.setData('text/plain', index.toString());
+      
+      if (handlers.dragStart) {
+        handlers.dragStart(index, card);
+      }
+    });
+    
+    cardEl.addEventListener('dragend', (e) => {
+      console.log('🎯 拖拽結束:', index);
+      cardEl.classList.remove('dragging');
+    });
+    
+    // 鍵盤支援
     cardEl.tabIndex = 0;
     cardEl.addEventListener('keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        if (selectHandler) {
-          selectHandler(index);
+        if (handlers.select) {
+          handlers.select(index);
         }
       }
     });
@@ -213,9 +215,6 @@ function renderHand(hand, selectedIndex, selectHandler, state) {
   });
 }
 
-/**
- * 渲染主按鈕（修復事件綁定）
- */
 function renderMainButton(state, buttonHandler) {
   const button = document.getElementById('main-button');
   if (!button) return;
@@ -225,6 +224,10 @@ function renderMainButton(state, buttonHandler) {
   // 移除舊的事件監聽器
   const newButton = button.cloneNode(true);
   button.parentNode.replaceChild(newButton, button);
+  
+  // 調整按鈕位置，避免遮擋投手卡
+  newButton.style.position = 'relative';
+  newButton.style.zIndex = '5';
   
   if (state.over) {
     newButton.textContent = "比賽結束";
@@ -250,9 +253,6 @@ function renderMainButton(state, buttonHandler) {
   }
 }
 
-/**
- * 渲染牌組資訊
- */
 function renderDeckInfo(player) {
   const deckCount = document.getElementById('player-deck-count');
   const discardCount = document.getElementById('player-discard-count');
@@ -261,16 +261,13 @@ function renderDeckInfo(player) {
   if (discardCount) discardCount.textContent = player.discard.length;
 }
 
-/**
- * 渲染活躍效果
- */
 function renderActiveEffects(activeEffects) {
   const display = document.getElementById('active-effects-display');
   if (!display) return;
   
   display.innerHTML = '';
   
-  if (activeEffects.length > 0) {
+  if (activeEffects && activeEffects.length > 0) {
     const title = document.createElement('div');
     title.textContent = '場上效果：';
     title.style.marginBottom = '0.5rem';
@@ -287,9 +284,6 @@ function renderActiveEffects(activeEffects) {
   }
 }
 
-/**
- * 渲染特殊狀態
- */
 function renderSpecialStates(state) {
   const container = document.getElementById('special-states');
   if (!container) return;
@@ -325,9 +319,6 @@ function renderSpecialStates(state) {
   }
 }
 
-/**
- * 獲取卡牌描述
- */
 function getCardDescription(card) {
   if (!card) return "";
   
@@ -354,9 +345,6 @@ function getCardDescription(card) {
   return '';
 }
 
-/**
- * 更新結果文字
- */
 export function updateOutcomeText(message) {
   const outcomeText = document.getElementById('outcome-text');
   if (outcomeText) {
@@ -365,9 +353,6 @@ export function updateOutcomeText(message) {
   }
 }
 
-/**
- * 更新錯誤文字
- */
 export function updateErrorText(message) {
   const outcomeText = document.getElementById('outcome-text');
   if (outcomeText) {
@@ -376,12 +361,226 @@ export function updateErrorText(message) {
   }
 }
 
-/**
- * 添加視覺效果
- */
 export function addVisualEffect(type, target) {
-  // 未來可以添加動畫效果
   console.log(`✨ 視覺效果: ${type} -> ${target}`);
+  
+  // 卡牌打出效果
+  if (type === 'cardPlayed') {
+    const targetElement = document.querySelector(target);
+    if (targetElement) {
+      targetElement.classList.add('card-played-effect');
+      setTimeout(() => {
+        targetElement.classList.remove('card-played-effect');
+      }, 1000);
+    }
+  }
+  
+  // 得分效果
+  if (type === 'score') {
+    const scoreElement = document.getElementById('home-score');
+    if (scoreElement) {
+      scoreElement.classList.add('score-increase');
+      setTimeout(() => {
+        scoreElement.classList.remove('score-increase');
+      }, 1000);
+    }
+  }
+}
+
+// 設置拖拽區域
+export function setupDragDropZones() {
+  // 投手區域作為拖拽目標
+  const pitcherArea = document.getElementById('player-pitcher-area');
+  if (pitcherArea) {
+    pitcherArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      pitcherArea.classList.add('drag-over');
+    });
+    
+    pitcherArea.addEventListener('dragleave', (e) => {
+      if (!pitcherArea.contains(e.relatedTarget)) {
+        pitcherArea.classList.remove('drag-over');
+      }
+    });
+    
+    pitcherArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      pitcherArea.classList.remove('drag-over');
+      
+      const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      console.log('🎯 卡牌拖拽到投手區域:', cardIndex);
+      
+      // 觸發自定義事件
+      const dropEvent = new CustomEvent('cardDropped', {
+        detail: { cardIndex, target: 'pitcher-area' }
+      });
+      document.dispatchEvent(dropEvent);
+    });
+  }
+  
+  // 中央區域作為拖拽目標
+  const centerField = document.querySelector('.center-field');
+  if (centerField) {
+    centerField.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      centerField.classList.add('drag-over');
+    });
+    
+    centerField.addEventListener('dragleave', (e) => {
+      if (!centerField.contains(e.relatedTarget)) {
+        centerField.classList.remove('drag-over');
+      }
+    });
+    
+    centerField.addEventListener('drop', (e) => {
+      e.preventDefault();
+      centerField.classList.remove('drag-over');
+      
+      const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
+      console.log('🎯 卡牌拖拽到中央區域:', cardIndex);
+      
+      // 觸發自定義事件
+      const dropEvent = new CustomEvent('cardDropped', {
+        detail: { cardIndex, target: 'center-field' }
+      });
+      document.dispatchEvent(dropEvent);
+    });
+  }
+}
+
+// 初始化UI
+export function initializeUI() {
+  console.log('🎨 初始化UI系統...');
+  
+  // 設置拖拽區域
+  setupDragDropZones();
+  
+  // 添加全域樣式
+  const style = document.createElement('style');
+  style.textContent = `
+    /* 拖拽相關樣式 */
+    .card.dragging {
+      opacity: 0.7;
+      transform: rotate(5deg);
+      z-index: 1000;
+    }
+    
+    .drag-over {
+      border: 3px dashed #f1c40f !important;
+      background-color: rgba(241, 196, 15, 0.1) !important;
+    }
+    
+    /* 手牌單行布局 */
+    .hand {
+      display: flex !important;
+      flex-wrap: nowrap !important;
+      overflow-x: auto !important;
+      gap: 0.8rem !important;
+      padding: 0 1rem !important;
+      max-width: 100% !important;
+    }
+    
+    .hand .card {
+      flex-shrink: 0 !important;
+      min-width: 120px !important;
+    }
+    
+    /* 修復按鈕層級 */
+    .action-area {
+      position: relative !important;
+      z-index: 10 !important;
+    }
+    
+    .main-button {
+      position: relative !important;
+      z-index: 11 !important;
+    }
+    
+    /* 投手卡片層級 */
+    .pitcher-card {
+      position: relative !important;
+      z-index: 1 !important;
+    }
+    
+    /* 視覺效果 */
+    .card-played-effect {
+      animation: cardPlayedPulse 1s ease-out;
+    }
+    
+    @keyframes cardPlayedPulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.1); box-shadow: 0 0 30px #f1c40f; }
+      100% { transform: scale(1); }
+    }
+    
+    .score-increase {
+      animation: scoreIncrease 1s ease-out;
+    }
+    
+    @keyframes scoreIncrease {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.2); color: #f1c40f; }
+      100% { transform: scale(1); }
+    }
+    
+    /* 響應式手牌調整 */
+    @media (max-width: 1200px) {
+      .hand .card {
+        min-width: 100px !important;
+        height: 140px !important;
+      }
+    }
+    
+    @media (max-width: 768px) {
+      .hand {
+        gap: 0.5rem !important;
+      }
+      
+      .hand .card {
+        min-width: 85px !important;
+        height: 120px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+  
+  console.log('✅ UI系統初始化完成');
+}
+
+// 手牌管理輔助函數
+export function adjustHandLayout(handSize) {
+  const handContainer = document.getElementById('player-hand');
+  if (!handContainer) return;
+  
+  // 根據手牌數量調整卡牌大小
+  const cards = handContainer.querySelectorAll('.card');
+  cards.forEach(card => {
+    if (handSize > 7) {
+      card.style.width = '100px';
+      card.style.height = '140px';
+    } else if (handSize > 5) {
+      card.style.width = '120px';
+      card.style.height = '170px';
+    } else {
+      card.style.width = '140px';
+      card.style.height = '200px';
+    }
+  });
+}
+
+// 清理函數
+export function cleanup() {
+  // 移除事件監聽器
+  const pitcherArea = document.getElementById('player-pitcher-area');
+  const centerField = document.querySelector('.center-field');
+  
+  if (pitcherArea) {
+    pitcherArea.replaceWith(pitcherArea.cloneNode(true));
+  }
+  
+  if (centerField) {
+    centerField.replaceWith(centerField.cloneNode(true));
+  }
 }
 
 console.log('✅ UI模組載入完成');

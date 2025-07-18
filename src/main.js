@@ -1,35 +1,31 @@
-// src/main.js - 簡化版本，專門用於測試和除錯
+// src/main.js - 增強版主遊戲邏輯
 console.log('🎮 MyGO!!!!! TCG 主檔案載入中...');
 
-// 嘗試載入所有必要的模組
 let CONFIG, TEAMS, createGameState, render;
 let gameInitialized = false;
+let draggedCard = null;
+let draggedCardIndex = -1;
 
 async function initializeGame() {
   try {
     console.log('📦 開始載入遊戲模組...');
     
-    // 載入配置
     const configModule = await import('./data/config.js');
     CONFIG = configModule.CONFIG;
     console.log('✅ Config 載入成功');
     
-    // 載入隊伍資料
     const teamsModule = await import('./data/teams.js');
     TEAMS = teamsModule.TEAMS;
     console.log('✅ Teams 載入成功:', TEAMS.length, '個隊伍');
     
-    // 載入遊戲狀態
     const gameStateModule = await import('./engine/game_state.js');
     createGameState = gameStateModule.createGameState;
     console.log('✅ Game State 載入成功');
     
-    // 載入UI
     const uiModule = await import('./ui/ui.js');
     render = uiModule.render;
     console.log('✅ UI 載入成功');
     
-    // 初始化遊戲
     startGame();
     
   } catch (error) {
@@ -42,22 +38,16 @@ function startGame() {
   try {
     console.log('🎯 開始初始化遊戲...');
     
-    // 創建遊戲狀態
     const state = createGameState();
     console.log('✅ 遊戲狀態創建成功');
     
-    // 確保MyGO隊伍存在
     const mygoTeam = TEAMS.find(team => team.id === "MGO");
     if (!mygoTeam) {
       throw new Error('找不到MyGO隊伍資料');
     }
     
     console.log('✅ MyGO隊伍確認:', mygoTeam.name);
-    console.log('  - 打者:', mygoTeam.batters.length, '名');
-    console.log('  - 投手:', mygoTeam.pitchers.length, '名'); 
-    console.log('  - 戰術卡:', mygoTeam.actionCards.length, '張');
     
-    // 設置事件處理器
     const handlers = {
       select: (idx) => {
         console.log('🎯 選擇卡牌:', idx);
@@ -78,13 +68,50 @@ function startGame() {
         }
         
         render(state, handlers);
+      },
+      
+      // 新增：拖拽處理
+      dragStart: (idx, card) => {
+        console.log('🎯 開始拖拽:', idx, card.name);
+        draggedCard = card;
+        draggedCardIndex = idx;
+        
+        // 添加拖拽中的視覺效果
+        const cardElement = document.querySelector(`[data-card-index="${idx}"]`);
+        if (cardElement) {
+          cardElement.classList.add('dragging');
+        }
+      },
+      
+      dragEnd: (target) => {
+        console.log('🎯 結束拖拽:', target);
+        if (draggedCard && draggedCardIndex !== -1) {
+          // 檢查是否拖拽到有效位置
+          if (target === 'field' || target === 'pitcher-area') {
+            // 執行卡牌效果
+            state.selected = draggedCardIndex;
+            runPlayerTurn(state);
+          }
+          
+          // 清理拖拽狀態
+          const cardElement = document.querySelector(`[data-card-index="${draggedCardIndex}"]`);
+          if (cardElement) {
+            cardElement.classList.remove('dragging');
+          }
+          
+          draggedCard = null;
+          draggedCardIndex = -1;
+        }
+        
+        render(state, handlers);
       }
     };
     
-    // 執行初始渲染
+    // 設置拖拽區域
+    setupDragDropZones(handlers);
+    
     render(state, handlers);
     
-    // 更新按鈕事件
     const mainButton = document.getElementById('main-button');
     if (mainButton) {
       mainButton.onclick = handlers.button;
@@ -93,7 +120,6 @@ function startGame() {
     console.log('🎉 遊戲初始化完成！');
     gameInitialized = true;
     
-    // 顯示成功訊息
     const outcomeText = document.getElementById('outcome-text');
     if (outcomeText) {
       outcomeText.textContent = '🎸 MyGO!!!!! 準備就緒！點擊 Play Ball 開始遊戲！';
@@ -105,11 +131,50 @@ function startGame() {
   }
 }
 
+function setupDragDropZones(handlers) {
+  // 設置投手區域作為拖拽目標
+  const pitcherArea = document.getElementById('player-pitcher-area');
+  if (pitcherArea) {
+    pitcherArea.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      pitcherArea.classList.add('drag-over');
+    });
+    
+    pitcherArea.addEventListener('dragleave', () => {
+      pitcherArea.classList.remove('drag-over');
+    });
+    
+    pitcherArea.addEventListener('drop', (e) => {
+      e.preventDefault();
+      pitcherArea.classList.remove('drag-over');
+      handlers.dragEnd('pitcher-area');
+    });
+  }
+  
+  // 設置中央區域作為拖拽目標
+  const centerField = document.querySelector('.center-field');
+  if (centerField) {
+    centerField.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      centerField.classList.add('drag-over');
+    });
+    
+    centerField.addEventListener('dragleave', () => {
+      centerField.classList.remove('drag-over');
+    });
+    
+    centerField.addEventListener('drop', (e) => {
+      e.preventDefault();
+      centerField.classList.remove('drag-over');
+      handlers.dragEnd('field');
+    });
+  }
+}
+
 function initDecks(state) {
   try {
     console.log('🎯 初始化牌組...');
     
-    // 準備玩家牌組 (MyGO)
     const playerTeam = TEAMS.find(team => team.id === "MGO");
     state.player.team = playerTeam;
     state.player.deck = [...playerTeam.batters, ...playerTeam.actionCards].map(prepareCard);
@@ -117,10 +182,9 @@ function initDecks(state) {
     state.player.hand = [];
     state.player.pitcher = prepareCard(playerTeam.pitchers[0]);
     
-    // 抽手牌
-    draw(state.player, CONFIG.handSize);
+    // 修改：每回合抽兩張卡片
+    draw(state.player, Math.min(CONFIG.handSize, 2));
     
-    // 準備CPU牌組 (Yankees)
     const cpuTeam = TEAMS.find(team => team.id === "NYY");
     state.cpu.team = cpuTeam;
     state.cpu.deck = [...cpuTeam.batters].map(prepareCard);
@@ -131,7 +195,6 @@ function initDecks(state) {
     console.log('  - 玩家牌組:', state.player.deck.length, '張');
     console.log('  - CPU牌組:', state.cpu.deck.length, '張');
     
-    // 開始CPU回合
     const outcomeText = document.getElementById('outcome-text');
     if (outcomeText) {
       outcomeText.textContent = '🎵 MyGO!!!!! vs Yankees - 客隊先攻！';
@@ -150,12 +213,14 @@ function initDecks(state) {
 function runPlayerTurn(state) {
   try {
     const card = state.player.hand[state.selected];
-    if (!card) return;
+    if (!card) {
+      console.warn('⚠️ 沒有選中的卡牌');
+      return;
+    }
     
     console.log('🎯 玩家回合:', card.name);
     
     if (card.type === 'batter') {
-      // 簡化的打擊模擬
       const result = simulateSimpleAtBat(card, state.cpu.activePitcher);
       processSimpleOutcome(result, state);
       
@@ -167,17 +232,21 @@ function runPlayerTurn(state) {
     } else if (card.type === 'action') {
       const outcomeText = document.getElementById('outcome-text');
       if (outcomeText) {
-        outcomeText.textContent = `${card.name} 戰術卡使用！`;
+        outcomeText.textContent = `${card.name} 戰術卡使用！效果已發動！`;
       }
     }
     
     // 移除卡牌
     state.player.hand.splice(state.selected, 1);
     state.player.discard.push(card);
-    draw(state.player, 1);
+    
+    // 修改：每回合抽兩張卡片
+    draw(state.player, 2);
+    
     state.selected = -1;
     
-    // 檢查三出局
+    console.log('✅ 玩家回合完成，手牌數量:', state.player.hand.length);
+    
     if (state.outs >= 3) {
       setTimeout(() => changeHalfInning(state), 1500);
     }
@@ -217,7 +286,15 @@ function runCpuTurn(state) {
       }
       
       cpuBatterIndex++;
-      render(state, { select: () => {}, button: () => {} });
+      
+      // 使用簡化的渲染參數
+      const simpleHandlers = {
+        select: () => {},
+        button: () => {},
+        dragStart: () => {},
+        dragEnd: () => {}
+      };
+      render(state, simpleHandlers);
     }, 1500);
     
   } catch (error) {
@@ -245,7 +322,6 @@ function changeHalfInning(state) {
       state.playerTurn = false;
       
       if (state.currentInning > CONFIG.innings) {
-        // 遊戲結束
         const winner = state.score.home > state.score.away ? "MyGO!!!!!獲勝！" : 
                       state.score.away > state.score.home ? "Yankees獲勝！" : "平手！";
         
@@ -268,7 +344,13 @@ function changeHalfInning(state) {
       }, 1000);
     }
     
-    render(state, { select: () => {}, button: () => {} });
+    const simpleHandlers = {
+      select: () => {},
+      button: () => {},
+      dragStart: () => {},
+      dragEnd: () => {}
+    };
+    render(state, simpleHandlers);
     
   } catch (error) {
     console.error('❌ 半局更換失敗:', error);
@@ -276,7 +358,6 @@ function changeHalfInning(state) {
   }
 }
 
-// 簡化的打擊模擬
 function simulateSimpleAtBat(batter, pitcher) {
   const random = Math.random();
   
@@ -300,14 +381,9 @@ function processSimpleOutcome(result, state) {
     state.outs++;
   } else {
     state.score.home += result.points || 1;
-    // 簡化的壘包邏輯
-    if (result.points && result.points < 4) {
-      // 假設有跑者上壘
-    }
   }
 }
 
-// 工具函數
 function prepareCard(cardData) {
   const card = { ...cardData };
   
@@ -352,7 +428,8 @@ function draw(player, numToDraw) {
       player.discard = [];
       shuffle(player.deck);
     }
-    if (player.hand.length < CONFIG.handSize && player.deck.length > 0) {
+    // 修改：手牌上限檢查
+    if (player.hand.length < 7 && player.deck.length > 0) {
       player.hand.push(player.deck.pop());
     }
   }
@@ -375,6 +452,5 @@ function showErrorMessage(message) {
   console.error('🚨 顯示錯誤訊息:', message);
 }
 
-// 啟動遊戲
 console.log('🎮 準備啟動 MyGO!!!!! TCG...');
 initializeGame();
