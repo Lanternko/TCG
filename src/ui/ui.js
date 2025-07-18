@@ -12,10 +12,12 @@ export function render(state, handlers) {
   renderInning(state.currentInning, state.half);
   renderBases(state.bases);
   renderCpuPitcher(state.cpu.activePitcher);
-  renderPlayerPitcher(state.player.pitcher); // NEW: Render player's pitcher
+  renderPlayerPitcher(state.player.pitcher);
   renderHand(state.player.hand, state.selected, handlers.select, state);
   renderDeckInfo(state.player);
   renderMainButton(state);
+  renderPitchersOnField(state); // NEW: Render pitchers on the field
+  renderAuraEffects(state); // NEW: Render active aura effects
   
   // Bind main button event (if not already bound)
   const button = document.getElementById('main-button');
@@ -45,9 +47,30 @@ function renderInning(inning, half) {
 }
 
 function renderBases(bases) {
-  document.getElementById('first-base')?.classList.toggle('occupied', !!bases[0]);
-  document.getElementById('second-base')?.classList.toggle('occupied', !!bases[1]);
-  document.getElementById('third-base')?.classList.toggle('occupied', !!bases[2]);
+  const baseElements = {
+    0: document.getElementById('first-base'),
+    1: document.getElementById('second-base'),
+    2: document.getElementById('third-base')
+  };
+  
+  Object.entries(baseElements).forEach(([index, element]) => {
+    if (element) {
+      const isOccupied = !!bases[index];
+      element.classList.toggle('occupied', isOccupied);
+      
+      // Update base label to show runner name if occupied
+      const label = element.querySelector('.base-label');
+      if (label) {
+        if (isOccupied && bases[index].name) {
+          label.textContent = bases[index].name.split(' ')[0]; // Show first name only
+          label.style.fontSize = '10px';
+        } else {
+          label.textContent = ['1B', '2B', '3B'][index];
+          label.style.fontSize = '14px';
+        }
+      }
+    }
+  });
 }
 
 function renderCpuPitcher(pitcher) {
@@ -61,10 +84,6 @@ function renderCpuPitcher(pitcher) {
     </div>` : '';
 }
 
-/**
- * NEW: Render player's pitcher card
- * @param {object} pitcher - Player's pitcher object
- */
 function renderPlayerPitcher(pitcher) {
   const pitcherArea = document.getElementById('player-pitcher-area');
   if (!pitcherArea) return;
@@ -74,6 +93,90 @@ function renderPlayerPitcher(pitcher) {
       <div class="card-ovr">${pitcher.ovr}</div>
       <div class="card-stats">POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity}<br>CTL:${pitcher.stats.control} TEC:${pitcher.stats.technique}</div>
     </div>` : '';
+}
+
+/**
+ * NEW: Render pitchers on the field in symmetric positions
+ */
+function renderPitchersOnField(state) {
+  const cpuPitcherDisplay = document.getElementById('cpu-pitcher-display');
+  const playerPitcherDisplay = document.getElementById('player-pitcher-display');
+  
+  if (cpuPitcherDisplay && state.cpu.activePitcher) {
+    cpuPitcherDisplay.innerHTML = `
+      <div class="card" style="transform: scale(0.8);">
+        <div class="card-name">${state.cpu.activePitcher.name}</div>
+        <div class="card-ovr">${state.cpu.activePitcher.ovr}</div>
+      </div>`;
+  }
+  
+  if (playerPitcherDisplay && state.player.pitcher) {
+    playerPitcherDisplay.innerHTML = `
+      <div class="card" style="transform: scale(0.8);">
+        <div class="card-name">${state.player.pitcher.name}</div>
+        <div class="card-ovr">${state.player.pitcher.ovr}</div>
+      </div>`;
+  }
+}
+
+/**
+ * NEW: Render active aura effects
+ */
+function renderAuraEffects(state) {
+  const auraContainer = document.getElementById('aura-effects');
+  if (!auraContainer) return;
+  
+  auraContainer.innerHTML = '';
+  
+  // Display active effects
+  state.activeEffects.forEach(effect => {
+    const effectEl = document.createElement('div');
+    effectEl.className = 'aura-effect';
+    
+    // Determine effect type for styling
+    if (effect.value > 0) {
+      effectEl.classList.add('buff');
+    } else if (effect.value < 0) {
+      effectEl.classList.add('debuff');
+    }
+    
+    // Create effect description
+    let description = '';
+    const icon = effect.value > 0 ? '↑' : effect.value < 0 ? '↓' : '◆';
+    
+    if (effect.type === 'synergy' && effect.cardName === 'Socrates') {
+      description = `${icon} ${effect.cardName} 的協作效果：所有友方打者力量 +${effect.value}`;
+    } else if (effect.type === 'aura' && effect.cardName === 'Heraclitus') {
+      description = `${icon} ${effect.cardName} 的光環效果：所有友方打者專注 +${effect.value}`;
+    } else if (effect.type === 'aura' && effect.cardName === 'Pythagoras') {
+      description = `${icon} ${effect.cardName} 的光環效果：二壘打機率提升`;
+    } else if (effect.type === 'play' && effect.target === 'enemyPitcher') {
+      description = `${icon} ${effect.cardName} 的出牌效果：敵方投手技術 ${effect.value}`;
+    } else if (effect.type === 'buff') {
+      description = `${icon} ${effect.cardName || '戰術'}效果：${effect.target} ${effect.stat} +${effect.value}`;
+    } else {
+      description = `${icon} ${effect.cardName} 的${effect.type}效果已啟動`;
+    }
+    
+    effectEl.innerHTML = `<span class="aura-effect-icon">${icon}</span><span>${description}</span>`;
+    auraContainer.appendChild(effectEl);
+  });
+  
+  // Also show temporary outcome messages as effects
+  const outcomeText = document.getElementById('outcome-text')?.textContent;
+  if (outcomeText && outcomeText.includes('效果') && !outcomeText.includes('失敗')) {
+    const tempEffect = document.createElement('div');
+    tempEffect.className = 'aura-effect';
+    tempEffect.innerHTML = `<span class="aura-effect-icon">✨</span><span>${outcomeText}</span>`;
+    auraContainer.appendChild(tempEffect);
+    
+    // Remove after 3 seconds
+    setTimeout(() => {
+      if (tempEffect.parentNode) {
+        tempEffect.remove();
+      }
+    }, 3000);
+  }
 }
 
 function renderHand(hand, selectedIndex, selectHandler, state) {
@@ -89,12 +192,12 @@ function renderHand(hand, selectedIndex, selectHandler, state) {
       cardEl.classList.add('selected');
     }
     
-    // NEW: Add action card styling
+    // Add action card styling
     if (card.type === 'action') {
       cardEl.classList.add('action-card');
     }
     
-    // NEW: Check if card can trigger special effects
+    // Check if card can trigger special effects
     if (canTriggerEffect(card, state)) {
       cardEl.classList.add('effect-active');
     }
@@ -113,7 +216,7 @@ function renderHand(hand, selectedIndex, selectHandler, state) {
       <div class="card-name">${card.name}</div>
       <div class="card-ovr">${card.ovr}</div>
       <div class="card-stats">${cardContent}</div>
-      ${description ? `<div class="card-description">${description}</div>` : ''}`;
+      ${description && card.type !== 'action' ? `<div class="card-description">${description}</div>` : ''}`;
       
     cardEl.onclick = () => selectHandler(index);
     handContainer.appendChild(cardEl);
@@ -149,7 +252,7 @@ function renderMainButton(state) {
   }
 }
 
-// --- NEW: Helper functions for card effects ---
+// --- Helper functions for card effects ---
 
 /**
  * Check if a card can trigger special effects based on current game state

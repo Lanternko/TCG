@@ -1,4 +1,4 @@
-// src/main.js (Updated with UI improvements)
+// src/main.js (Updated with scoring fixes and UI improvements)
 import { createGameState } from './engine/game_state.js';
 import { render } from './ui/ui.js';
 import { simulateAtBat, processCardEffects, applyActionCard } from './engine/sim.js';
@@ -54,7 +54,7 @@ function initDecks() {
   state.player.deck = [...playerTeam.batters, ...playerTeam.actionCards].map(prepareCard);
   shuffle(state.player.deck);
   state.player.hand = [];
-  state.player.pitcher = prepareCard(playerTeam.pitchers[0]); // NEW: Set player pitcher
+  state.player.pitcher = prepareCard(playerTeam.pitchers[0]); // Set player pitcher
   draw(state.player, state.cfg.handSize);
 
   // Initialize CPU (AWAY team)
@@ -121,35 +121,66 @@ function processAtBatOutcome(result, card) {
     // Handle permanent effects (like Aristotle)
     const deathEffect = card.effects?.death;
     if (deathEffect?.duration === 'permanent') {
-        state.player.deck.forEach(c => c.stats[deathEffect.stat] += deathEffect.value);
-        state.player.hand.forEach(c => c.stats[deathEffect.stat] += deathEffect.value);
-        state.player.discard.forEach(c => c.stats[deathEffect.stat] += deathEffect.value);
+        state.player.deck.forEach(c => {
+          if (c.stats && c.stats[deathEffect.stat] !== undefined) {
+            c.stats[deathEffect.stat] += deathEffect.value;
+          }
+        });
+        state.player.hand.forEach(c => {
+          if (c.stats && c.stats[deathEffect.stat] !== undefined) {
+            c.stats[deathEffect.stat] += deathEffect.value;
+          }
+        });
+        state.player.discard.forEach(c => {
+          if (c.stats && c.stats[deathEffect.stat] !== undefined) {
+            c.stats[deathEffect.stat] += deathEffect.value;
+          }
+        });
     }
   } else {
     // If safely on base, handle 'aura' and 'synergy' effects
     processCardEffects(card, 'aura', state);
     processCardEffects(card, 'synergy', state);
 
-    // Advance runners and score (this is a simplified version, can be expanded more complexly in future)
-    const runners = state.bases.filter(Boolean); // Current runners on base
-    runners.push(card); // Batter also counts
-    state.bases = [null, null, null]; // Clear bases to reset
+    // FIX: Proper runner advancement and scoring
+    const advanceCount = result.adv || 0;
     let scoreGained = 0;
 
-    runners.forEach(runner => {
-      // Assume each runner advances result.adv bases
-      const currentBase = state.bases.indexOf(runner); // -1 if not on base
-      const newBaseIndex = currentBase + result.adv;
-      if (newBaseIndex >= 3) {
-        scoreGained++; // Runner reaches home and scores
-      } else {
-        state.bases[newBaseIndex] = runner; // Advance to new base
+    // Process existing runners first (from third to first)
+    for (let baseIndex = 2; baseIndex >= 0; baseIndex--) {
+      if (state.bases[baseIndex]) {
+        const runner = state.bases[baseIndex];
+        const newPosition = baseIndex + advanceCount;
+        
+        if (newPosition >= 3) {
+          // Runner scores!
+          scoreGained++;
+          state.bases[baseIndex] = null;
+          console.log(`${runner.name} scores!`);
+        } else {
+          // Move runner to new base
+          state.bases[baseIndex] = null;
+          state.bases[newPosition] = runner;
+        }
       }
-    });
+    }
+
+    // Place the batter on base
+    if (advanceCount > 0 && advanceCount < 4) {
+      state.bases[advanceCount - 1] = card;
+    } else if (advanceCount === 4) {
+      // Home run - batter scores too
+      scoreGained++;
+    }
 
     // Update score
     const currentScorer = state.half === 'top' ? 'away' : 'home';
     state.score[currentScorer] += scoreGained;
+
+    // Update outcome text with scoring info
+    if (scoreGained > 0) {
+      document.getElementById('outcome-text').textContent += ` ${scoreGained} 分得手！`;
+    }
   }
 }
 
@@ -190,12 +221,13 @@ function changeHalfInning() {
 }
 
 /**
- * Simulate CPU's complete turn
+ * Simulate CPU's complete turn with proper scoring
  */
 function runCpuTurn() {
   let cpuOuts = 0;
   let cpuBatterIndex = 0;
-  const playerPitcher = state.player.pitcher; // NEW: Use player's pitcher
+  const playerPitcher = state.player.pitcher;
+  const cpuBases = [null, null, null]; // Track CPU runners
 
   // Use setInterval to simulate one-by-one at-bats, letting player see the process
   const turnInterval = setInterval(() => {
@@ -210,22 +242,42 @@ function runCpuTurn() {
 
     if (result.type === 'K' || result.type === 'OUT') {
       cpuOuts++;
+      document.getElementById('outcome-text').textContent = result.description;
     } else {
-      // Simplified CPU scoring logic
+      // FIX: Proper CPU scoring with runner advancement
       let points = 0;
-      switch (result.type) {
-        case 'HR': points = 1 + state.bases.filter(Boolean).length; break;
-        case '3B': points = 1; break; // Simplified handling
-        case '2B': points = 1; break;
-        case '1B': points = 1; break;
+      const advanceCount = result.adv || 0;
+
+      // Advance existing runners
+      for (let i = 2; i >= 0; i--) {
+        if (cpuBases[i]) {
+          const newPosition = i + advanceCount;
+          if (newPosition >= 3) {
+            points++;
+            cpuBases[i] = null;
+          } else {
+            cpuBases[newPosition] = cpuBases[i];
+            cpuBases[i] = null;
+          }
+        }
       }
-      state.score.away += points; // CPU is away team
+
+      // Place batter on base
+      if (advanceCount > 0 && advanceCount < 4) {
+        cpuBases[advanceCount - 1] = batter;
+      } else if (advanceCount === 4) {
+        // Home run
+        points++;
+      }
+
+      state.score.away += points;
+      document.getElementById('outcome-text').textContent = result.description + 
+        (points > 0 ? ` ${points} 分得手！` : '');
     }
     
-    document.getElementById('outcome-text').textContent = result.description;
     cpuBatterIndex++;
     render(state, handlers); // Update screen after each CPU at-bat
-  }, 1000); // Hit once per second
+  }, 1500); // Hit once every 1.5 seconds
 }
 
 // =============================================================================
@@ -233,7 +285,7 @@ function runCpuTurn() {
 // =============================================================================
 
 /**
- * NEW: Prepare a card by calculating OVR and other properties
+ * Prepare a card by calculating OVR and other properties
  * @param {object} cardData - Raw card data
  * @returns {object} - Prepared card with OVR
  */
@@ -250,28 +302,28 @@ function prepareCard(cardData) {
 }
 
 /**
- * NEW: Calculate batter OVR
+ * Calculate batter OVR using weights from config
  */
 function calculateBatterOVR(stats) {
   const w = CONFIG.ovrWeights.batter;
-  const power = stats.power ?? 5;
-  const hitRate = stats.hitRate ?? 5;
-  const contact = stats.contact ?? 5;
-  const speed = stats.speed ?? 5;
+  const power = stats.power ?? 50;
+  const hitRate = stats.hitRate ?? 50;
+  const contact = stats.contact ?? 50;
+  const speed = stats.speed ?? 50;
   const score = power * w.power + hitRate * w.hitRate + contact * w.contact + speed * w.speed;
   const ovr = Math.round(score * w.scale + w.base);
   return Math.min(99, Math.max(40, ovr));
 }
 
 /**
- * NEW: Calculate pitcher OVR
+ * Calculate pitcher OVR using weights from config
  */
 function calculatePitcherOVR(stats) {
   const w = CONFIG.ovrWeights.pitcher;
-  const power = stats.power ?? 5;
-  const velocity = stats.velocity ?? 5;
-  const control = stats.control ?? 5;
-  const technique = stats.technique ?? 5;
+  const power = stats.power ?? 50;
+  const velocity = stats.velocity ?? 50;
+  const control = stats.control ?? 50;
+  const technique = stats.technique ?? 50;
   const score = power * w.power + velocity * w.velocity + control * w.control + technique * w.technique;
   const ovr = Math.round(score * w.scale + w.base);
   return Math.min(99, Math.max(40, ovr));
