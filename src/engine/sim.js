@@ -1,11 +1,25 @@
-// /src/engine/sim.js
+// src/engine/sim.js - 更新的模擬引擎
 import { CONFIG } from '../data/config.js';
+import { EffectProcessor, effectRegistry } from './effects.js';
+
+let effectProcessor = null;
+
+export function initializeEffectProcessor(gameState) {
+  effectProcessor = new EffectProcessor(gameState);
+  return effectProcessor;
+}
 
 export function simulateAtBat(batter, pitcher, state) {
-  // Create temporary, effect-modified batter and pitcher objects
+  // 確保效果處理器已初始化
+  if (!effectProcessor) {
+    effectProcessor = initializeEffectProcessor(state);
+  }
+
+  // 創建臨時修改後的球員物件
   const modifiedBatter = JSON.parse(JSON.stringify(batter));
   const modifiedPitcher = JSON.parse(JSON.stringify(pitcher));
-  // Apply all current turn's activeEffects
+  
+  // 應用所有當前活躍效果
   applyAllActiveEffects(state, modifiedBatter.stats, modifiedPitcher.stats);
 
   const { norm } = CONFIG;
@@ -32,136 +46,290 @@ export function simulateAtBat(batter, pitcher, state) {
 }
 
 /**
- * Process card effects and add them to activeEffects
- * @param {object} card - Card whose effects are triggered
- * @param {string} trigger - Trigger timing (e.g., 'play', 'death', 'aura')
- * @param {object} state - Game state
+ * 統一的卡牌效果處理入口
  */
 export function processCardEffects(card, trigger, state) {
-    if (!card.effects || !card.effects[trigger]) {
-        return;
-    }
+  if (!effectProcessor) {
+    effectProcessor = initializeEffectProcessor(state);
+  }
+  
+  if (!card.effects || !card.effects[trigger]) {
+    return { success: false, reason: '沒有對應的效果' };
+  }
 
-    const effect = card.effects[trigger];
-    const effectData = {
-        cardName: card.name,
-        type: trigger,
-        ...effect
-    };
-    
-    // Direct handling of specific effects
-    if (effect.action === "shuffleToDeck" && trigger === "play") {
-        if (state.player.discard.length > 0) {
-            const cardToShuffle = state.player.discard.splice(0, 1)[0];
-            state.player.deck.push(cardToShuffle);
-            // You might need a shuffleDeck function
-            console.log(`${card.name} 的效果：將 ${cardToShuffle.name} 從棄牌堆洗回牌庫！`);
-        }
-        return; // This effect doesn't enter activeEffects
-    }
-
-    // Add effects that need to persist to activeEffects
-    state.activeEffects.push(effectData);
-    console.log(`觸發效果: ${card.name} 的 ${trigger} 效果已被啟動。`);
+  const effectData = card.effects[trigger];
+  const result = effectProcessor.processEffect(card, effectData, trigger);
+  
+  // 更新光環效果
+  if (trigger === 'play' || trigger === 'death') {
+    updateAuraEffects(state);
+  }
+  
+  return result;
 }
 
 /**
- * Apply all activeEffects
- * @param {object} state - Game state
- * @param {object} batterStats - Batter stats to modify
- * @param {object} pitcherStats - Pitcher stats to modify
+ * 應用所有當前活躍效果到數值上
  */
 function applyAllActiveEffects(state, batterStats, pitcherStats) {
-    state.activeEffects.forEach(effect => {
-        // Check trigger conditions
-        const isSocratesSynergy = effect.cardName === "Socrates" && state.bases.some(b => b && b.name === "Socrates");
-        const isHeraclitusAura = effect.cardName === "Heraclitus" && state.bases.some(b => b && b.name === "Heraclitus");
+  state.activeEffects.forEach(effect => {
+    // 檢查效果是否仍然有效
+    if (!isEffectValid(effect, state)) {
+      return;
+    }
 
-        if (effect.target === "allFriendlyBatters" && (isSocratesSynergy || isHeraclitusAura)) {
-            batterStats[effect.stat] += effect.value;
-        } else if (effect.target === "enemyPitcher" && effect.duration === "atBat") {
-            pitcherStats[effect.stat] += effect.value;
-        } else if (effect.target === "hand" && effect.type === "play") {
-            // This effect should be handled in main.js during draw/play phase, here for example only
-        } else if (effect.target === "deck" && effect.type === "death") {
-             // Permanent effects handled once in main.js
-        }
-    });
+    // 根據目標類型應用效果
+    if (effect.target && typeof effect.target === 'object') {
+      applyEffectToTarget(effect, effect.target, batterStats, pitcherStats);
+    } else if (effect.stat && effect.value !== undefined) {
+      // 簡單的數值修改
+      if (effect.target === 'batter' || effect.targetType === 'batter') {
+        applyStatModification(batterStats, effect);
+      } else if (effect.target === 'pitcher' || effect.targetType === 'pitcher') {
+        applyStatModification(pitcherStats, effect);
+      }
+    }
+  });
 }
 
 /**
- * Handle action card effects
- * @param {object} card - Action card being played
- * @param {object} state - Game state
- * @returns {string} - Description of the result
+ * 檢查效果是否仍然有效
+ */
+function isEffectValid(effect, state) {
+  // 檢查持續時間
+  if (effect.duration === 'atBat') return true;
+  if (effect.duration === 'turn') return true;
+  if (effect.duration === 'inning') return true;
+  if (effect.duration === 'game') return true;
+  if (effect.duration === 'permanent') return true;
+  
+  // 檢查條件
+  if (effect.condition) {
+    return effectProcessor.checkCondition(effect.condition, effect.source);
+  }
+  
+  return true;
+}
+
+/**
+ * 應用數值修改
+ */
+function applyStatModification(stats, effect) {
+  if (!effect.stat || effect.value === undefined) return;
+  
+  const stat = effect.stat;
+  const value = effect.value;
+  
+  if (effect.mode === 'absolute' || effect.type === 'setTo') {
+    stats[stat] = value;
+  } else if (effect.type === 'buff' || effect.type === 'debuff') {
+    stats[stat] = (stats[stat] || 0) + value;
+  }
+  
+  // 確保數值在合理範圍內
+  if (typeof stats[stat] === 'number') {
+    stats[stat] = Math.max(0, Math.min(200, stats[stat]));
+  }
+}
+
+/**
+ * 更新光環效果
+ * 這個函數會重新計算所有基於壘包狀態的光環效果
+ */
+export function updateAuraEffects(state) {
+  // 清除舊的光環效果
+  state.activeEffects = state.activeEffects.filter(effect => 
+    effect.type !== 'aura' && effect.type !== 'passive'
+  );
+  
+  // 重新添加所有光環效果
+  // 1. 壘上角色的光環
+  state.bases.forEach((card, baseIndex) => {
+    if (card && card.effects && card.effects.aura) {
+      const auraEffect = card.effects.aura;
+      if (effectProcessor.checkCondition(auraEffect.condition, card)) {
+        const auraData = {
+          source: card.name,
+          type: 'aura',
+          baseIndex: baseIndex,
+          ...auraEffect
+        };
+        state.activeEffects.push(auraData);
+      }
+    }
+  });
+  
+  // 2. 手牌中的被動效果
+  state.player.hand.forEach(card => {
+    if (card && card.effects && card.effects.passive) {
+      const passiveEffect = card.effects.passive;
+      if (passiveEffect.condition === 'inHand' || !passiveEffect.condition) {
+        const passiveData = {
+          source: card.name,
+          type: 'passive',
+          location: 'hand',
+          ...passiveEffect
+        };
+        state.activeEffects.push(passiveData);
+      }
+    }
+  });
+  
+  // 3. 投手的被動效果
+  if (state.player.pitcher && state.player.pitcher.effects && state.player.pitcher.effects.passive) {
+    const pitcherPassive = state.player.pitcher.effects.passive;
+    const pitcherData = {
+      source: state.player.pitcher.name,
+      type: 'passive',
+      location: 'pitcher',
+      ...pitcherPassive
+    };
+    state.activeEffects.push(pitcherData);
+  }
+}
+
+/**
+ * 處理戰術卡效果
  */
 export function applyActionCard(card, state) {
-  const effect = card.effects.play;
-  let outcomeDescription = "戰術失敗了...";
+  if (!effectProcessor) {
+    effectProcessor = initializeEffectProcessor(state);
+  }
+  
+  if (!card.effects || !card.effects.play) {
+    return "這張戰術卡沒有效果...";
+  }
+  
+  const result = effectProcessor.processEffect(card, card.effects.play, 'play');
+  
+  if (result.success) {
+    updateAuraEffects(state);
+    return result.description;
+  } else {
+    return `${card.name} 失敗了: ${result.reason}`;
+  }
+}
 
-  switch (effect.action) {
-    case "bunt":
-      // Advance all runners, batter is out
-      state.outs++;
-      const runners = state.bases.filter(Boolean);
-      state.bases = [null, null, null];
-      runners.forEach(runner => {
-        const currentBase = state.bases.indexOf(runner);
-        const newBaseIndex = currentBase + 1;
-        if (newBaseIndex < 3) state.bases[newBaseIndex] = runner;
-        else {
-          // Score run
-          const currentScorer = state.half === 'top' ? 'away' : 'home';
-          state.score[currentScorer]++;
-        }
-      });
-      outcomeDescription = `${card.name}成功！跑者向前推進！`;
+/**
+ * 清理過期效果
+ */
+export function cleanupExpiredEffects(state, context = 'turn') {
+  const sizeBefore = state.activeEffects.length;
+  
+  switch (context) {
+    case 'atBat':
+      state.activeEffects = state.activeEffects.filter(effect => 
+        effect.duration !== 'atBat'
+      );
       break;
-
-    case "steal":
-      const runner = state.bases[0]; // Simplified: only steal second
-      if (runner) {
-        // Success rate = (runner speed - pitcher power) / 100
-        const pitcher = state.playerTurn ? state.cpu.activePitcher : state.player.pitcher;
-        const successChance = (runner.stats.speed - pitcher.stats.power) / 100 + 0.5;
-        if (Math.random() < successChance) {
-          state.bases[1] = runner;
-          state.bases[0] = null;
-          outcomeDescription = `${runner.name} 盜壘成功！`;
-        } else {
-          state.bases[0] = null;
-          state.outs++;
-          outcomeDescription = `${runner.name} 盜壘失敗，被抓到了！`;
-        }
-      } else {
-        outcomeDescription = "一壘上沒有跑者可以盜壘！";
-      }
+    case 'turn':
+      state.activeEffects = state.activeEffects.filter(effect => 
+        effect.duration !== 'atBat' && effect.duration !== 'turn'
+      );
       break;
-
-    case "buff":
-      // Add effect to activeEffects, it will be applied in simulateAtBat
-      state.activeEffects.push({
-        cardName: card.name,
-        type: 'buff',
-        ...effect
-      });
-      outcomeDescription = "全隊的專注力提升了！";
+    case 'inning':
+      state.activeEffects = state.activeEffects.filter(effect => 
+        effect.duration !== 'atBat' && 
+        effect.duration !== 'turn' && 
+        effect.duration !== 'inning'
+      );
+      break;
+    case 'game':
+      state.activeEffects = state.activeEffects.filter(effect => 
+        effect.duration === 'permanent'
+      );
       break;
   }
-  return outcomeDescription;
+  
+  const sizeAfter = state.activeEffects.length;
+  if (sizeBefore !== sizeAfter) {
+    console.log(`清理了 ${sizeBefore - sizeAfter} 個過期效果 (${context})`);
+  }
 }
 
 function hitBySpeed(speed, state) {
   let doubleChance = 0.20 + (speed - 75) * 0.002;
   let tripleChance = 0.05 + (speed - 75) * 0.001;
 
-  // Apply Pythagoras' aura effect if active
-  const pythagorasEffect = state.activeEffects.find(e => e.cardName === "Pythagoras" && e.type === "aura");
-  if (pythagorasEffect) {
-    doubleChance += pythagorasEffect.value;
-  }
+  // 檢查動態數值修改（如喵夢的效果）
+  const dynamicEffects = state.activeEffects.filter(effect => 
+    effect.value === 'dynamicByScore' && effect.stat === 'speed'
+  );
+  
+  dynamicEffects.forEach(effect => {
+    if (effect.calculation) {
+      const dynamicValue = effect.calculation(state);
+      speed += dynamicValue;
+      console.log(`${effect.source} 的動態效果: 速度+${dynamicValue}`);
+    }
+  });
+
+  // 重新計算機率
+  doubleChance = 0.20 + (speed - 75) * 0.002;
+  tripleChance = 0.05 + (speed - 75) * 0.001;
 
   if (Math.random() < tripleChance) return { type: '3B', description: `三壘安打！`, adv: 3 };
   if (Math.random() < doubleChance) return { type: '2B', description: `二壘安打！`, adv: 2 };
   return { type: '1B', description: `一壘安打！`, adv: 1 };
+}
+
+// === 工具函數 ===
+
+/**
+ * 獲取指定條件的角色列表
+ */
+export function getCharactersByCondition(state, condition) {
+  switch (condition) {
+    case 'mygoOnBase':
+      return state.bases.filter(card => card && card.band === 'MyGO!!!!!');
+    case 'mujicaOnBase':
+      return state.bases.filter(card => card && card.band === 'Mujica');
+    case 'guitaristsOnBase':
+      return state.bases.filter(card => card && card.instrument === 'Guitar');
+    case 'drummersOnBase':
+      return state.bases.filter(card => card && card.instrument === 'Drums');
+    case 'allOnBase':
+      return state.bases.filter(Boolean);
+    case 'allInHand':
+      return state.player.hand;
+    default:
+      return [];
+  }
+}
+
+/**
+ * 計算效果的實際數值（支援動態計算）
+ */
+export function calculateEffectValue(effect, state) {
+  if (typeof effect.value === 'function') {
+    return effect.value(state);
+  } else if (effect.value === 'dynamicByScore') {
+    return state.score.home || 0;
+  } else if (typeof effect.value === 'number') {
+    return effect.value;
+  } else {
+    return 0;
+  }
+}
+
+/**
+ * 檢查角色是否滿足特定標籤條件
+ */
+export function hasTag(character, tag) {
+  return character.tags && character.tags.includes(tag);
+}
+
+/**
+ * 檢查角色是否屬於特定樂隊
+ */
+export function isBandMember(character, band) {
+  return character.band === band;
+}
+
+/**
+ * 檢查角色是否使用特定樂器
+ */
+export function playsInstrument(character, instrument) {
+  return character.instrument === instrument || 
+         (character.instrument && character.instrument.includes(instrument));
 }
