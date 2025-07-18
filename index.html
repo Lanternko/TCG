@@ -7,57 +7,523 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
+    
+    <!-- 內嵌CSS樣式 -->
     <style>
-        body { font-family: 'Inter', sans-serif; background: #1a2a3a; color: #f0f8ff; overflow: hidden; height: 100vh; display: flex; justify-content: center; align-items: center; margin: 0; }
-        .game-container { width: 100%; height: 100%; max-width: 1200px; max-height: 900px; display: flex; flex-direction: column; background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); border-radius: 20px; box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); border: 2px solid #4a5a6a; }
-        .card { width: 120px; height: 170px; background: #2c3e50; border: 2px solid #7f8c8d; border-radius: 10px; padding: 0.5rem; display: flex; flex-direction: column; justify-content: space-between; transition: all 0.3s ease; position: relative; box-shadow: 0 4px 8px rgba(0,0,0,0.3); cursor: pointer; }
-        .card:hover { transform: translateY(-5px) scale(1.02); border-color: #f1c40f; }
-        .card.selected { border-color: #e74c3c; box-shadow: 0 0 15px #e74c3c; }
-        .card.action-card { border-color: #9b59b6; }
-        .card.action-card:hover { border-color: #e67e22; }
-        .card-name { font-weight: 700; font-size: 0.9rem; text-align: center; margin-bottom: 0.3rem; }
-        .card-ovr { position: absolute; top: 5px; right: 5px; font-size: 0.8rem; font-weight: bold; background-color: rgba(0,0,0,0.7); padding: 2px 5px; border-radius: 5px; color: #ffd700; }
-        .card-stats { font-size: 0.7rem; text-align: center; font-family: 'Roboto Mono', monospace; margin-bottom: 0.3rem; }
-        .card-description { font-size: 0.65rem; text-align: center; color: #bdc3c7; font-style: italic; line-height: 1.2; flex-grow: 1; overflow: hidden; }
-        .card-instrument { font-size: 0.6rem; text-align: center; color: #f39c12; font-weight: bold; margin-bottom: 0.2rem; }
-        .card-band { font-size: 0.6rem; text-align: center; color: #3498db; font-weight: bold; }
-        .top-bar { padding: 1rem; display: flex; justify-content: space-between; align-items: center; }
-        .score-display { font-size: 3rem; font-weight: 700; font-family: 'Roboto Mono', monospace; color: #ffffff; background-color: rgba(0,0,0,0.3); padding: 0.5rem 2rem; border-radius: 10px; border: 1px solid #4a5a6a; }
-        .game-state-display { display: flex; flex-direction: column; align-items: flex-end; gap: 0.5rem; }
-        .outs-display { display: flex; gap: 0.75rem; }
-        .out-light { width: 20px; height: 20px; border-radius: 50%; background-color: #3a4a5a; border: 2px solid #5a6a7a; transition: all 0.3s ease; }
-        .out-light.active { background-color: #e74c3c; box-shadow: 0 0 10px #e74c3c; }
-        .inning-display { font-size: 1.5rem; font-weight: 600; color: #bdc3c7; }
-        .field { flex-grow: 1; display: flex; flex-direction: column; justify-content: space-between; align-items: center; position: relative; padding: 1rem 0; }
-        .pitching-mound { display: flex; flex-direction: column; align-items: center; gap: 1rem; width: 100%; }
-        #cpu-pitcher-area .card { border-color: #e74c3c; }
-        #player-pitcher-area .card { border-color: #3498db; }
-        .team-indicator { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.2rem; text-align: center; }
-        .team-indicator.away { color: #e74c3c; }
-        .team-indicator.home { color: #3498db; }
-        .bases-container { display: flex; gap: 20px; margin: 1rem 0; }
-        .base { width: 50px; height: 50px; background-color: rgba(255, 255, 255, 0.1); border: 2px solid #7f8c8d; border-radius: 10px; transition: all 0.3s ease; font-family: 'Roboto Mono', monospace; display: flex; align-items: center; justify-content: center; color: #7f8c8d; font-weight: bold; }
-        .base.occupied { background-color: #f1c40f; border-color: #f39c12; box-shadow: 0 0 15px #f1c40f; color: #000; }
-        .base.locked { background-color: #e74c3c; border-color: #c0392b; box-shadow: 0 0 15px #e74c3c; color: #fff; }
-        #active-effects-display { width: 80%; text-align: center; color: #f1c40f; font-size: 0.8rem; min-height: 40px; background: rgba(0,0,0,0.3); border-radius: 8px; padding: 0.5rem; display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; align-items: center; }
-        #active-effects-display .effect { background: rgba(0,0,0,0.5); padding: 2px 8px; border-radius: 5px; border: 1px solid #f1c40f; }
-        .action-area { padding: 1rem; display: flex; justify-content: center; align-items: center; gap: 1rem; }
-        .main-button { padding: 1rem 3rem; font-size: 1.5rem; font-weight: 700; color: white; background: linear-gradient(145deg, #3498db, #2980b9); border: none; border-radius: 15px; cursor: pointer; box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); transition: all 0.2s ease-in-out; }
-        .main-button:hover { background: linear-gradient(145deg, #2980b9, #3498db); transform: translateY(-2px); }
-        .main-button:disabled { background: #7f8c8d; cursor: not-allowed; transform: none; }
-        .secondary-button { padding: 0.5rem 1rem; font-size: 0.9rem; font-weight: 600; color: white; background: linear-gradient(145deg, #95a5a6, #7f8c8d); border: none; border-radius: 8px; cursor: pointer; transition: all 0.2s ease-in-out; }
-        .secondary-button:hover { background: linear-gradient(145deg, #7f8c8d, #95a5a6); }
-        .bottom-area { display: flex; justify-content: space-between; align-items: flex-end; padding: 1.5rem; background-color: rgba(0, 0, 0, 0.2); border-top: 1px solid #4a5a6a; }
-        .hand { display: flex; justify-content: center; align-items: center; gap: 1rem; min-height: 180px; }
-        .hand .card:hover { transform: translateY(-15px) scale(1.05); border-color: #f1c40f; }
-        .deck-area { text-align: center; min-width: 80px; }
-        .deck-area p { margin: 0 0 0.5rem 0; font-size: 0.9rem; color: #bdc3c7; }
-        .deck-count { font-size: 1.2rem; font-weight: bold; color: #f1c40f; }
-        #outcome-text { position: absolute; bottom: 0; left: 50%; transform: translateX(-50%); font-size: 1.2rem; font-weight: 600; color: #f39c12; text-align: center; background: rgba(0,0,0,0.7); padding: 0.5rem 1rem; border-radius: 8px; max-width: 80%; word-wrap: break-word; }
-        .special-states { position: absolute; top: 10px; left: 10px; display: flex; flex-direction: column; gap: 5px; }
-        .special-state { background: rgba(0,0,0,0.7); padding: 3px 8px; border-radius: 5px; font-size: 0.7rem; color: #f1c40f; border: 1px solid #f1c40f; }
-        .error-message { color: #e74c3c; background: rgba(231, 76, 60, 0.1); padding: 1rem; border-radius: 8px; margin: 1rem; border: 1px solid #e74c3c; }
-        .loading { text-align: center; padding: 2rem; font-size: 1.2rem; color: #f1c40f; }
+        /* 這裡放入上面的CSS樣式 */
+        body { 
+          font-family: 'Inter', sans-serif; 
+          background: #1a2a3a; 
+          color: #f0f8ff; 
+          margin: 0; 
+          padding: 0;
+          height: 100vh; 
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+        }
+
+        .game-container { 
+          width: 100vw; 
+          height: 100vh; 
+          max-width: 1400px; 
+          max-height: 1000px; 
+          display: flex; 
+          flex-direction: column; 
+          background: radial-gradient(circle, #2c3e50 0%, #1a2a3a 100%); 
+          border-radius: 20px; 
+          box-shadow: 0 0 40px rgba(0, 0, 0, 0.5); 
+          border: 2px solid #4a5a6a; 
+          overflow: hidden;
+        }
+
+        .card { 
+          width: 140px; 
+          height: 200px; 
+          background: linear-gradient(145deg, #2c3e50, #34495e); 
+          border: 2px solid #7f8c8d; 
+          border-radius: 12px; 
+          padding: 0.8rem; 
+          display: flex; 
+          flex-direction: column; 
+          justify-content: space-between; 
+          transition: all 0.3s ease; 
+          position: relative; 
+          box-shadow: 0 6px 12px rgba(0,0,0,0.4); 
+          cursor: pointer;
+          user-select: none;
+        }
+
+        .card:hover { 
+          transform: translateY(-5px) scale(1.03); 
+          border-color: #f1c40f; 
+          box-shadow: 0 8px 20px rgba(0,0,0,0.6);
+        }
+
+        .card.selected { 
+          border-color: #e74c3c; 
+          box-shadow: 0 0 20px #e74c3c; 
+          transform: translateY(-8px) scale(1.05);
+        }
+
+        .card.action-card { 
+          border-color: #9b59b6; 
+          background: linear-gradient(145deg, #8e44ad, #9b59b6);
+        }
+
+        .card.batter-card { 
+          border-color: #3498db; 
+        }
+
+        .card.pitcher-card { 
+          width: 120px;
+          height: 180px;
+          border-color: #e74c3c;
+        }
+
+        .card-name { 
+          font-weight: 700; 
+          font-size: 1rem; 
+          text-align: center; 
+          margin-bottom: 0.5rem; 
+          line-height: 1.2;
+        }
+
+        .card-ovr { 
+          position: absolute; 
+          top: 8px; 
+          right: 8px; 
+          font-size: 0.9rem; 
+          font-weight: bold; 
+          background-color: rgba(0,0,0,0.8); 
+          padding: 3px 8px; 
+          border-radius: 6px; 
+          color: #ffd700; 
+          border: 1px solid #ffd700;
+        }
+
+        .card-stats { 
+          font-size: 0.75rem; 
+          text-align: center; 
+          font-family: 'Roboto Mono', monospace; 
+          margin-bottom: 0.5rem; 
+          line-height: 1.3;
+        }
+
+        .card-description { 
+          font-size: 0.7rem; 
+          text-align: center; 
+          color: #bdc3c7; 
+          font-style: italic; 
+          line-height: 1.3; 
+          flex-grow: 1; 
+          overflow: hidden; 
+          display: -webkit-box;
+          -webkit-line-clamp: 4;
+          -webkit-box-orient: vertical;
+        }
+
+        .card-instrument { 
+          font-size: 0.65rem; 
+          text-align: center; 
+          color: #f39c12; 
+          font-weight: bold; 
+          margin-bottom: 0.3rem; 
+          background: rgba(243, 156, 18, 0.1);
+          padding: 2px 6px;
+          border-radius: 4px;
+        }
+
+        .card-band { 
+          font-size: 0.65rem; 
+          text-align: center; 
+          color: #3498db; 
+          font-weight: bold; 
+          margin-bottom: 0.3rem;
+        }
+
+        .top-bar { 
+          padding: 1.5rem; 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: center; 
+          background: rgba(0,0,0,0.2);
+          border-bottom: 1px solid #4a5a6a;
+        }
+
+        .score-display { 
+          font-size: 3.5rem; 
+          font-weight: 700; 
+          font-family: 'Roboto Mono', monospace; 
+          color: #ffffff; 
+          background-color: rgba(0,0,0,0.4); 
+          padding: 1rem 2.5rem; 
+          border-radius: 15px; 
+          border: 2px solid #4a5a6a; 
+          text-shadow: 0 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .game-state-display { 
+          display: flex; 
+          flex-direction: column; 
+          align-items: flex-end; 
+          gap: 1rem; 
+        }
+
+        .outs-display { 
+          display: flex; 
+          gap: 1rem; 
+        }
+
+        .out-light { 
+          width: 24px; 
+          height: 24px; 
+          border-radius: 50%; 
+          background-color: #3a4a5a; 
+          border: 3px solid #5a6a7a; 
+          transition: all 0.3s ease; 
+        }
+
+        .out-light.active { 
+          background-color: #e74c3c; 
+          border-color: #c0392b;
+          box-shadow: 0 0 15px #e74c3c; 
+        }
+
+        .inning-display { 
+          font-size: 1.6rem; 
+          font-weight: 600; 
+          color: #bdc3c7; 
+          text-align: right;
+        }
+
+        .field { 
+          flex-grow: 1; 
+          display: grid;
+          grid-template-columns: 200px 1fr 200px;
+          grid-template-rows: 1fr;
+          gap: 1rem;
+          padding: 1rem; 
+          position: relative;
+          overflow: hidden;
+        }
+
+        #cpu-pitcher-area {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+
+        #player-pitcher-area {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 0.5rem;
+        }
+
+        .center-field {
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          gap: 2rem;
+        }
+
+        .bases-container { 
+          display: flex; 
+          gap: 2rem; 
+          align-items: center;
+          justify-content: center;
+        }
+
+        .base { 
+          width: 60px; 
+          height: 60px; 
+          background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)); 
+          border: 3px solid #7f8c8d; 
+          border-radius: 12px; 
+          transition: all 0.3s ease; 
+          font-family: 'Roboto Mono', monospace; 
+          display: flex; 
+          align-items: center; 
+          justify-content: center; 
+          color: #7f8c8d; 
+          font-weight: bold; 
+          font-size: 0.9rem;
+          cursor: pointer;
+        }
+
+        .base.occupied { 
+          background: linear-gradient(145deg, #f1c40f, #f39c12); 
+          border-color: #e67e22; 
+          box-shadow: 0 0 20px rgba(241, 196, 15, 0.6); 
+          color: #2c3e50; 
+          font-weight: bold;
+        }
+
+        .base.locked { 
+          background: linear-gradient(145deg, #e74c3c, #c0392b); 
+          border-color: #a93226; 
+          box-shadow: 0 0 20px rgba(231, 76, 60, 0.6); 
+          color: #fff; 
+          animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+
+        #active-effects-display { 
+          width: 90%; 
+          max-width: 600px;
+          text-align: center; 
+          color: #f1c40f; 
+          font-size: 0.85rem; 
+          min-height: 50px; 
+          background: rgba(0,0,0,0.4); 
+          border-radius: 10px; 
+          padding: 1rem; 
+          display: flex; 
+          justify-content: center; 
+          flex-wrap: wrap; 
+          gap: 0.5rem; 
+          align-items: center; 
+          border: 1px solid #4a5a6a;
+        }
+
+        #active-effects-display .effect { 
+          background: linear-gradient(145deg, rgba(0,0,0,0.6), rgba(0,0,0,0.4)); 
+          padding: 4px 10px; 
+          border-radius: 6px; 
+          border: 1px solid #f1c40f; 
+          font-size: 0.75rem;
+          white-space: nowrap;
+        }
+
+        .special-states { 
+          position: absolute; 
+          top: 15px; 
+          left: 15px; 
+          display: flex; 
+          flex-direction: column; 
+          gap: 8px; 
+          z-index: 10;
+        }
+
+        .special-state { 
+          background: rgba(0,0,0,0.8); 
+          padding: 6px 12px; 
+          border-radius: 8px; 
+          font-size: 0.8rem; 
+          font-weight: bold;
+          border: 2px solid;
+          backdrop-filter: blur(4px);
+        }
+
+        .special-state.mygo-synergy { 
+          color: #3498db; 
+          border-color: #3498db;
+          box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+        }
+
+        .special-state.mujica-synergy { 
+          color: #9b59b6; 
+          border-color: #9b59b6;
+          box-shadow: 0 0 10px rgba(155, 89, 182, 0.3);
+        }
+
+        #outcome-text { 
+          position: absolute; 
+          bottom: 20px; 
+          left: 50%; 
+          transform: translateX(-50%); 
+          font-size: 1.3rem; 
+          font-weight: 600; 
+          color: #f39c12; 
+          text-align: center; 
+          background: rgba(0,0,0,0.8); 
+          padding: 1rem 2rem; 
+          border-radius: 10px; 
+          max-width: 80%; 
+          word-wrap: break-word; 
+          border: 1px solid #4a5a6a;
+          backdrop-filter: blur(4px);
+        }
+
+        .action-area { 
+          padding: 1.5rem; 
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          gap: 1rem; 
+          background: rgba(0,0,0,0.1);
+          border-top: 1px solid #4a5a6a;
+        }
+
+        .main-button { 
+          padding: 1.2rem 4rem; 
+          font-size: 1.6rem; 
+          font-weight: 700; 
+          color: white; 
+          background: linear-gradient(145deg, #3498db, #2980b9); 
+          border: none; 
+          border-radius: 18px; 
+          cursor: pointer; 
+          box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4); 
+          transition: all 0.3s ease; 
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+
+        .main-button:hover:not(:disabled) { 
+          background: linear-gradient(145deg, #2980b9, #3498db); 
+          transform: translateY(-3px); 
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.5);
+        }
+
+        .main-button:disabled { 
+          background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
+          cursor: not-allowed; 
+          transform: none; 
+          box-shadow: 0 3px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .bottom-area { 
+          display: flex; 
+          justify-content: space-between; 
+          align-items: flex-end; 
+          padding: 2rem; 
+          background: rgba(0, 0, 0, 0.3); 
+          border-top: 2px solid #4a5a6a; 
+          min-height: 250px;
+        }
+
+        .hand { 
+          display: flex; 
+          justify-content: center; 
+          align-items: center; 
+          gap: 1rem; 
+          min-height: 220px; 
+          flex-wrap: wrap;
+          max-width: 800px;
+        }
+
+        .hand .card:hover { 
+          transform: translateY(-20px) scale(1.08); 
+          border-color: #f1c40f; 
+          z-index: 10;
+        }
+
+        .hand .card.selected {
+          transform: translateY(-25px) scale(1.1);
+          z-index: 20;
+        }
+
+        .deck-area { 
+          text-align: center; 
+          min-width: 100px; 
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          gap: 0.5rem;
+        }
+
+        .deck-area p { 
+          margin: 0; 
+          font-size: 1rem; 
+          color: #bdc3c7; 
+          font-weight: 600;
+        }
+
+        .deck-count { 
+          font-size: 1.8rem; 
+          font-weight: bold; 
+          color: #f1c40f; 
+          background: rgba(0,0,0,0.3);
+          padding: 0.5rem 1rem;
+          border-radius: 8px;
+          border: 1px solid #4a5a6a;
+          min-width: 50px;
+          text-align: center;
+        }
+
+        .team-indicator { 
+          font-size: 0.9rem; 
+          font-weight: 600; 
+          margin-bottom: 0.5rem; 
+          text-align: center; 
+          padding: 0.3rem 0.8rem;
+          border-radius: 6px;
+          background: rgba(0,0,0,0.3);
+        }
+
+        .team-indicator.away { 
+          color: #e74c3c; 
+          border: 1px solid #e74c3c;
+        }
+
+        .team-indicator.home { 
+          color: #3498db; 
+          border: 1px solid #3498db;
+        }
+
+        .loading { 
+          text-align: center; 
+          padding: 3rem; 
+          font-size: 1.5rem; 
+          color: #f1c40f; 
+          background: rgba(0,0,0,0.3);
+          border-radius: 10px;
+          margin: 2rem;
+        }
+
+        .error-message { 
+          color: #e74c3c; 
+          background: rgba(231, 76, 60, 0.1); 
+          padding: 2rem; 
+          border-radius: 10px; 
+          margin: 2rem; 
+          border: 2px solid #e74c3c; 
+          text-align: center;
+        }
+
+        .secondary-button { 
+          padding: 0.8rem 1.5rem; 
+          font-size: 1rem; 
+          font-weight: 600; 
+          color: white; 
+          background: linear-gradient(145deg, #95a5a6, #7f8c8d); 
+          border: none; 
+          border-radius: 10px; 
+          cursor: pointer; 
+          transition: all 0.3s ease; 
+        }
+
+        .secondary-button:hover { 
+          background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
+          transform: translateY(-2px);
+        }
+
+        /* 響應式設計 */
+        @media (max-width: 1200px) {
+          .field {
+            grid-template-columns: 150px 1fr 150px;
+          }
+          
+          .card {
+            width: 120px;
+            height: 170px;
+          }
+          
+          .card.pitcher-card {
+            width: 100px;
+            height: 150px;
+          }
+        }
     </style>
 </head>
 <body>
@@ -68,7 +534,7 @@
                 <span id="away-score">0</span> - <span id="home-score">0</span>
             </div>
             <div class="game-state-display">
-                <div id="inning-display" class="inning-display"></div>
+                <div id="inning-display" class="inning-display">1st 上</div>
                 <div class="outs-display">
                     <div class="out-light"></div>
                     <div class="out-light"></div>
@@ -78,18 +544,35 @@
         </div>
         
         <div class="field">
-            <div class="pitching-mound">
-                <div id="cpu-pitcher-area"></div>
+            <!-- 左側：客隊投手 -->
+            <div id="cpu-pitcher-area">
+                <!-- 投手卡會在這裡渲染 -->
+            </div>
+            
+            <!-- 中央：遊戲區域 -->
+            <div class="center-field">
                 <div class="bases-container">
                     <div id="third-base" class="base">3B</div>
                     <div id="second-base" class="base">2B</div>
                     <div id="first-base" class="base">1B</div>
                 </div>
-                <div id="player-pitcher-area"></div>
+                <div id="active-effects-display">
+                    無活躍效果
+                </div>
             </div>
-            <div id="active-effects-display"></div>
-            <div id="outcome-text"></div>
-            <div class="special-states" id="special-states"></div>
+            
+            <!-- 右側：主隊投手 -->
+            <div id="player-pitcher-area">
+                <!-- 投手卡會在這裡渲染 -->
+            </div>
+            
+            <div class="special-states" id="special-states">
+                <!-- 特殊狀態會在這裡顯示 -->
+            </div>
+            
+            <div id="outcome-text">
+                🎸 MyGO!!!!! 準備就緒！點擊 Play Ball 開始遊戲！
+            </div>
         </div>
         
         <div class="action-area">
@@ -102,7 +585,9 @@
                 <p>牌庫</p>
                 <div class="deck-count" id="player-deck-count">0</div>
             </div>
-            <div id="player-hand" class="hand"></div>
+            <div id="player-hand" class="hand">
+                <!-- 手牌會在這裡渲染 -->
+            </div>
             <div class="deck-area">
                 <p>棄牌堆</p>
                 <div class="deck-count" id="player-discard-count">0</div>
@@ -170,11 +655,7 @@
                 const gameStateModule = await import('./src/engine/game_state.js');
                 console.log('✅ Game State 載入成功');
                 
-                // 載入模擬引擎
-                const simModule = await import('./src/engine/sim.js');
-                console.log('✅ Simulation Engine 載入成功');
-                
-                // 載入 UI
+                // 載入UI
                 const uiModule = await import('./src/ui/ui.js');
                 console.log('✅ UI 載入成功');
                 
@@ -188,7 +669,7 @@
             } catch (error) {
                 console.error('❌ 遊戲載入失敗:', error);
                 showError(`模組載入失敗: ${error.message}
-                
+
 可能的原因：
 1. 檔案路徑不正確
 2. 模組語法錯誤

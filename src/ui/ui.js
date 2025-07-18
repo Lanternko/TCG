@@ -1,218 +1,387 @@
-// src/ui/ui.js
+// src/ui/ui.js - 優化的UI渲染系統
 
 /**
- * Main render function that coordinates all UI component updates
- * @param {object} state - Global game state object
- * @param {object} handlers - Event handler object (select, button)
+ * 主渲染函數
  */
 export function render(state, handlers) {
-  renderScore(state.score);
-  renderOuts(state.outs);
-  renderInning(state.currentInning, state.half);
-  renderBases(state.bases);
-  renderCpuPitcher(state.cpu.activePitcher);
-  renderPlayerPitcher(state.player.pitcher);
-  renderHand(state.player.hand, state.selected, handlers.select, state);
-  renderDeckInfo(state.player);
-  renderMainButton(state);
-  renderActiveEffects(state.activeEffects); // --- NEW ---
-  
-  const button = document.getElementById('main-button');
-  if (!button.onclick) {
-    button.onclick = handlers.button;
+  try {
+    console.log('🎨 開始渲染UI...', {
+      playerTurn: state.playerTurn,
+      selected: state.selected,
+      handSize: state.player.hand.length,
+      outs: state.outs
+    });
+    
+    renderScore(state.score);
+    renderOuts(state.outs);
+    renderInning(state.currentInning, state.half);
+    renderBases(state.bases);
+    renderPitchers(state.cpu.activePitcher, state.player.pitcher);
+    renderHand(state.player.hand, state.selected, handlers.select, state);
+    renderDeckInfo(state.player);
+    renderMainButton(state, handlers.button);
+    renderActiveEffects(state.activeEffects);
+    renderSpecialStates(state);
+    
+    console.log('✅ UI渲染完成');
+    
+  } catch (error) {
+    console.error('❌ UI渲染失敗:', error);
   }
 }
 
-
-// --- Helper render functions ---
-
+/**
+ * 渲染分數
+ */
 function renderScore(score) {
-  document.getElementById('away-score').textContent = score.away;
-  document.getElementById('home-score').textContent = score.home;
+  const awayScore = document.getElementById('away-score');
+  const homeScore = document.getElementById('home-score');
+  
+  if (awayScore) awayScore.textContent = score.away;
+  if (homeScore) homeScore.textContent = score.home;
 }
 
+/**
+ * 渲染出局燈
+ */
 function renderOuts(outs) {
-  document.querySelectorAll('.out-light').forEach((light, index) => {
+  const outLights = document.querySelectorAll('.out-light');
+  outLights.forEach((light, index) => {
     light.classList.toggle('active', index < outs);
   });
 }
 
+/**
+ * 渲染局數
+ */
 function renderInning(inning, half) {
   const inningDisplay = document.getElementById('inning-display');
   if (!inningDisplay) return;
+  
   const inningSuffix = ['st', 'nd', 'rd'][inning - 1] || 'th';
-  inningDisplay.innerHTML = `<span class="inning-indicator ${half}"></span> ${inning}${inningSuffix}`;
+  const halfText = half === 'top' ? '上' : '下';
+  inningDisplay.textContent = `${inning}${inningSuffix} ${halfText}`;
 }
 
+/**
+ * 渲染壘包
+ */
 function renderBases(bases) {
-  document.getElementById('first-base')?.classList.toggle('occupied', !!bases[0]);
-  document.getElementById('second-base')?.classList.toggle('occupied', !!bases[1]);
-  document.getElementById('third-base')?.classList.toggle('occupied', !!bases[2]);
+  const baseElements = [
+    document.getElementById('first-base'),
+    document.getElementById('second-base'),
+    document.getElementById('third-base')
+  ];
+  
+  baseElements.forEach((element, index) => {
+    if (!element) return;
+    
+    const card = bases[index];
+    const isOccupied = !!card;
+    const isLocked = card && card.locked;
+    
+    element.classList.toggle('occupied', isOccupied);
+    element.classList.toggle('locked', isLocked);
+    
+    if (isOccupied) {
+      element.title = `${card.name} (${card.band || 'Unknown'})`;
+    } else {
+      element.title = '';
+    }
+  });
 }
 
-function renderCpuPitcher(pitcher) {
-  const pitcherArea = document.getElementById('cpu-pitcher-area');
-  if (!pitcherArea) return;
-  pitcherArea.innerHTML = pitcher ? `
-    <div class="team-indicator away">客隊投手</div>
-    <div class="card">
-      <div class="card-name">${pitcher.name}</div>
-      <div class="card-ovr">${pitcher.ovr}</div>
-      <div class="card-stats">POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity}<br>CTL:${pitcher.stats.control} TEC:${pitcher.stats.technique}</div>
-    </div>` : '';
+/**
+ * 渲染投手卡（左右分佈）
+ */
+function renderPitchers(cpuPitcher, playerPitcher) {
+  const cpuPitcherArea = document.getElementById('cpu-pitcher-area');
+  const playerPitcherArea = document.getElementById('player-pitcher-area');
+  
+  // 渲染CPU投手（左側）
+  if (cpuPitcherArea) {
+    cpuPitcherArea.innerHTML = cpuPitcher ? `
+      <div class="team-indicator away">客隊投手</div>
+      <div class="card pitcher-card">
+        <div class="card-name">${cpuPitcher.name}</div>
+        <div class="card-ovr">${cpuPitcher.ovr}</div>
+        <div class="card-stats">
+          POW: ${cpuPitcher.stats.power}<br>
+          VEL: ${cpuPitcher.stats.velocity}<br>
+          CTL: ${cpuPitcher.stats.control}<br>
+          TEC: ${cpuPitcher.stats.technique}
+        </div>
+      </div>
+    ` : '';
+  }
+  
+  // 渲染玩家投手（右側）
+  if (playerPitcherArea) {
+    playerPitcherArea.innerHTML = playerPitcher ? `
+      <div class="team-indicator home">主隊投手</div>
+      <div class="card pitcher-card">
+        <div class="card-name">${playerPitcher.name}</div>
+        <div class="card-ovr">${playerPitcher.ovr}</div>
+        <div class="card-stats">
+          POW: ${playerPitcher.stats.power}<br>
+          VEL: ${playerPitcher.stats.velocity}<br>
+          CTL: ${playerPitcher.stats.control}<br>
+          TEC: ${playerPitcher.stats.technique}
+        </div>
+        <div class="card-description">${playerPitcher.band || 'CRYCHIC'}</div>
+      </div>
+    ` : '';
+  }
 }
 
-function renderPlayerPitcher(pitcher) {
-  const pitcherArea = document.getElementById('player-pitcher-area');
-  if (!pitcherArea) return;
-  pitcherArea.innerHTML = pitcher ? `
-    <div class="team-indicator home">主隊投手</div>
-    <div class="card">
-      <div class="card-name">${pitcher.name}</div>
-      <div class="card-ovr">${pitcher.ovr}</div>
-      <div class="card-stats">POW:${pitcher.stats.power} VEL:${pitcher.stats.velocity}<br>CTL:${pitcher.stats.control} TEC:${pitcher.stats.technique}</div>
-    </div>` : '';
-}
-
+/**
+ * 渲染手牌（修復點擊事件）
+ */
 function renderHand(hand, selectedIndex, selectHandler, state) {
   const handContainer = document.getElementById('player-hand');
   if (!handContainer) return;
+  
+  console.log('🎯 渲染手牌:', {
+    handSize: hand.length,
+    selected: selectedIndex,
+    hasSelectHandler: !!selectHandler
+  });
+  
   handContainer.innerHTML = '';
 
   hand.forEach((card, index) => {
     const cardEl = document.createElement('div');
-    cardEl.className = 'card';
+    cardEl.className = 'card hand-card';
     
+    // 添加選中狀態
     if (index === selectedIndex) {
       cardEl.classList.add('selected');
     }
     
+    // 添加卡牌類型樣式
     if (card.type === 'action') {
       cardEl.classList.add('action-card');
+    } else if (card.type === 'batter') {
+      cardEl.classList.add('batter-card');
     }
-
+    
+    // 構建卡牌內容
     let cardStats = '';
     if (card.type === 'batter') {
-      cardStats = `POW:${card.stats.power} HIT:${card.stats.hitRate}<br>CON:${card.stats.contact} SPD:${card.stats.speed}`;
+      cardStats = `
+        <div class="card-stats">
+          POW: ${card.stats.power} HIT: ${card.stats.hitRate}<br>
+          CON: ${card.stats.contact} SPD: ${card.stats.speed}
+        </div>
+      `;
     }
-    // --- UPDATED: Always show description for all card types ---
-    const description = getCardDescription(card, 'short');
-
+    
+    const description = getCardDescription(card);
+    const instrument = card.instrument ? `<div class="card-instrument">🎵 ${card.instrument}</div>` : '';
+    const band = card.band ? `<div class="card-band">${card.band}</div>` : '';
+    
     cardEl.innerHTML = `
       <div class="card-name">${card.name}</div>
       <div class="card-ovr">${card.ovr}</div>
-      <div class="card-stats">${cardStats}</div>
-      <div class="card-description">${description}</div>`;
-      
-    cardEl.onclick = () => selectHandler(index);
+      ${cardStats}
+      ${instrument}
+      ${band}
+      <div class="card-description">${description}</div>
+    `;
+    
+    // 重要：綁定點擊事件
+    cardEl.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('🎯 卡牌點擊:', index, card.name);
+      if (selectHandler) {
+        selectHandler(index);
+      }
+    });
+    
+    // 添加鍵盤支援
+    cardEl.tabIndex = 0;
+    cardEl.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault();
+        if (selectHandler) {
+          selectHandler(index);
+        }
+      }
+    });
+    
     handContainer.appendChild(cardEl);
   });
 }
 
-// --- NEW: Render Active Effects ---
-function renderActiveEffects(activeEffects) {
-    const display = document.getElementById('active-effects-display');
-    if (!display) return;
-    display.innerHTML = ''; // Clear previous effects
-    if (activeEffects.length > 0) {
-        display.innerHTML = '場上效果：';
-        activeEffects.forEach(effect => {
-            const effectEl = document.createElement('span');
-            effectEl.className = 'effect';
-            effectEl.textContent = `[${effect.cardName}] ${getCardDescription(effect, 'effect')}`;
-            display.appendChild(effectEl);
-        });
-    }
-}
-
-function renderDeckInfo(player) {
-  const deckCount = document.getElementById('player-deck-count');
-  const discardCount = document.getElementById('player-discard-count');
-  if (deckCount) deckCount.textContent = player.deck.length;
-  if (discardCount) discardCount.textContent = player.discard.length;
-}
-
-function renderMainButton(state) {
+/**
+ * 渲染主按鈕（修復事件綁定）
+ */
+function renderMainButton(state, buttonHandler) {
   const button = document.getElementById('main-button');
   if (!button) return;
   
   const gameStarted = !!state.cpu.activePitcher;
-
+  
+  // 移除舊的事件監聽器
+  const newButton = button.cloneNode(true);
+  button.parentNode.replaceChild(newButton, button);
+  
   if (state.over) {
-    button.textContent = "比賽結束";
-    button.disabled = true;
+    newButton.textContent = "比賽結束";
+    newButton.disabled = true;
   } else if (!gameStarted) {
-    button.textContent = "Play Ball";
-    button.disabled = false;
+    newButton.textContent = "Play Ball";
+    newButton.disabled = false;
   } else if (state.playerTurn) {
-    button.disabled = state.selected === -1;
-    button.textContent = state.selected === -1 ? "選擇卡牌" : "確認出牌";
+    newButton.disabled = state.selected === -1;
+    newButton.textContent = state.selected === -1 ? "選擇卡牌" : "確認出牌";
   } else {
-    button.textContent = "客隊回合";
-    button.disabled = true;
+    newButton.textContent = "客隊回合";
+    newButton.disabled = true;
+  }
+  
+  // 重新綁定事件
+  if (buttonHandler) {
+    newButton.addEventListener('click', (e) => {
+      e.preventDefault();
+      console.log('🎯 主按鈕點擊');
+      buttonHandler();
+    });
   }
 }
 
-function getCardDescription(card, context = 'full') {
-    if (!card) return "";
+/**
+ * 渲染牌組資訊
+ */
+function renderDeckInfo(player) {
+  const deckCount = document.getElementById('player-deck-count');
+  const discardCount = document.getElementById('player-discard-count');
+  
+  if (deckCount) deckCount.textContent = player.deck.length;
+  if (discardCount) discardCount.textContent = player.discard.length;
+}
 
-    // For rendering active effects
-    if (context === 'effect' && card.description) {
-        return card.description;
+/**
+ * 渲染活躍效果
+ */
+function renderActiveEffects(activeEffects) {
+  const display = document.getElementById('active-effects-display');
+  if (!display) return;
+  
+  display.innerHTML = '';
+  
+  if (activeEffects.length > 0) {
+    const title = document.createElement('div');
+    title.textContent = '場上效果：';
+    title.style.marginBottom = '0.5rem';
+    display.appendChild(title);
+    
+    activeEffects.forEach(effect => {
+      const effectEl = document.createElement('div');
+      effectEl.className = 'effect';
+      effectEl.textContent = `[${effect.source || effect.cardName}] ${effect.description || effect.stat}`;
+      display.appendChild(effectEl);
+    });
+  } else {
+    display.textContent = '無活躍效果';
+  }
+}
+
+/**
+ * 渲染特殊狀態
+ */
+function renderSpecialStates(state) {
+  const container = document.getElementById('special-states');
+  if (!container) return;
+  
+  container.innerHTML = '';
+  
+  // 檢查MyGO協同
+  if (state.mygoInitialized) {
+    const mygoOnBase = state.bases.filter(card => card && card.band === 'MyGO!!!!!').length;
+    const mujicaOnBase = state.bases.filter(card => card && card.band === 'Mujica').length;
+    
+    if (mygoOnBase >= 3) {
+      const stateEl = document.createElement('div');
+      stateEl.className = 'special-state mygo-synergy';
+      stateEl.textContent = `🎵 MyGO協同 (${mygoOnBase}人)`;
+      container.appendChild(stateEl);
     }
     
-    if (card.effects) {
-        const effect = card.effects.play || card.effects.synergy || card.effects.aura || card.effects.death;
-        if (effect && effect.description) {
-            return effect.description;
-        }
+    if (mujicaOnBase >= 3) {
+      const stateEl = document.createElement('div');
+      stateEl.className = 'special-state mujica-synergy';
+      stateEl.textContent = `🖤 Mujica威壓 (${mujicaOnBase}人)`;
+      container.appendChild(stateEl);
     }
-    
-    if (card.type === 'action') {
-        return card.effects?.play?.description || '戰術卡';
-    }
-
-    if (context === 'short') { // For cards in hand
-        const effect = card.effects?.play || card.effects?.synergy || card.effects?.aura || card.effects?.death;
-        return effect?.description || '';
-    }
-
-    return "";
+  }
+  
+  // 檢查鎖定角色
+  if (state.lockedCharacters && state.lockedCharacters.length > 0) {
+    const stateEl = document.createElement('div');
+    stateEl.className = 'special-state locked';
+    stateEl.textContent = `🔒 鎖定 (${state.lockedCharacters.length}人)`;
+    container.appendChild(stateEl);
+  }
 }
 
-// --- Helper functions for card effects ---
-
-function canTriggerEffect(card, state) {
-  if (!card.effects) return false;
+/**
+ * 獲取卡牌描述
+ */
+function getCardDescription(card) {
+  if (!card) return "";
   
-  if (card.effects.synergy) {
-    const condition = card.effects.synergy.condition;
-    if (condition === "onBase" && card.name === "Socrates") {
-      return state.bases.some(b => b && b.name === "Socrates");
-    }
-    if (condition === "philosopherOnSecond" && card.name === "Zeno of Elea") {
-      return state.bases[1] && state.bases[1].name !== "Zeno of Elea";
+  // 優先使用effects中的描述
+  if (card.effects) {
+    const effects = ['play', 'synergy', 'aura', 'death', 'passive'];
+    for (const effectType of effects) {
+      if (card.effects[effectType] && card.effects[effectType].description) {
+        return card.effects[effectType].description;
+      }
     }
   }
   
-  if (card.effects.aura) {
-    const condition = card.effects.aura.condition;
-    if (condition === "onBase") {
-      return state.bases.some(b => b && b.name === card.name);
-    }
+  // 戰術卡的預設描述
+  if (card.type === 'action') {
+    return card.rarity ? `${card.rarity} 戰術卡` : '戰術卡';
   }
   
-  if (card.type === "action") {
-    const effect = card.effects.play;
-    if (effect.action === "steal") {
-      return state.bases[0] !== null; // Need runner on first
-    }
-    if (effect.action === "bunt") {
-      return state.bases.some(Boolean); // Need any runner on base
-    }
-    return true;
+  // 根據稀有度或樂器顯示
+  if (card.instrument) {
+    return `${card.instrument} 演奏者`;
   }
   
-  return false;
+  return '';
 }
 
+/**
+ * 更新結果文字
+ */
+export function updateOutcomeText(message) {
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = message;
+    outcomeText.style.color = '#f39c12';
+  }
+}
+
+/**
+ * 更新錯誤文字
+ */
+export function updateErrorText(message) {
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = message;
+    outcomeText.style.color = '#e74c3c';
+  }
+}
+
+/**
+ * 添加視覺效果
+ */
+export function addVisualEffect(type, target) {
+  // 未來可以添加動畫效果
+  console.log(`✨ 視覺效果: ${type} -> ${target}`);
+}
+
+console.log('✅ UI模組載入完成');
