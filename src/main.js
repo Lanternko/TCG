@@ -36,6 +36,11 @@ async function initializeGame() {
     render = uiModule.render;
     console.log('✅ UI 載入成功');
     
+    // 🆕 新增：初始化UI增強功能
+    if (uiModule.initializeCancelFunctionality) {
+      uiModule.initializeCancelFunctionality();
+    }
+    
     startGame();
     
   } catch (error) {
@@ -44,7 +49,7 @@ async function initializeGame() {
   }
 }
 
-// 🔧 修改：startGame 函數 - 正確初始化狀態
+// 🔧 修改：startGame 函數 - 正確暴露所有必要函數
 function startGame() {
   try {
     console.log('🎯 開始初始化遊戲...');
@@ -97,11 +102,18 @@ function startGame() {
           state.selected = cardIndex;
           runPlayerTurn(state, handlers);
         }
-      }
+      },
+      
+      // 🆕 新增：添加 render 到 handlers 中
+      render: render
     };
     
     currentHandlers = handlers;
+    
+    // 🔧 修復：暴露所有必要函數到 window
     window.handleHandCardSelection = handleHandCardSelection;
+    window.cancelTargetSelection = cancelTargetSelection;
+    window.currentHandlers = handlers;
     
     setupDragDropZones(handlers);
     render(state, handlers);
@@ -129,22 +141,49 @@ function setupDragDropZones(handlers) {
   // 設置打擊位置作為拖拽目標
   const batterZone = document.getElementById('batter-zone');
   if (batterZone) {
-    batterZone.addEventListener('dragover', (e) => {
+    // 清除舊的事件監聽器
+    batterZone.replaceWith(batterZone.cloneNode(true));
+    const newBatterZone = document.getElementById('batter-zone');
+    
+    newBatterZone.addEventListener('dragover', (e) => {
       e.preventDefault();
-      batterZone.classList.add('drag-over');
+      newBatterZone.classList.add('drag-over');
     });
     
-    batterZone.addEventListener('dragleave', () => {
-      batterZone.classList.remove('drag-over');
+    newBatterZone.addEventListener('dragleave', (e) => {
+      // 只有當滑鼠真正離開區域時才移除樣式
+      if (!newBatterZone.contains(e.relatedTarget)) {
+        newBatterZone.classList.remove('drag-over');
+      }
     });
     
-    batterZone.addEventListener('drop', (e) => {
+    newBatterZone.addEventListener('drop', (e) => {
       e.preventDefault();
-      batterZone.classList.remove('drag-over');
+      newBatterZone.classList.remove('drag-over');
       
       const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
-      if (cardIndex !== -1) {
+      if (cardIndex !== -1 && !isNaN(cardIndex)) {
+        console.log('🎯 拖拽到打擊區:', cardIndex);
         handlers.dragToBatter(cardIndex);
+      }
+    });
+    
+    // 右鍵取消
+    newBatterZone.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (window.awaitingTargetSelection) {
+        window.cancelTargetSelection(window.gameState, handlers);
+      }
+    });
+  }
+  
+  // 設置中央場地的右鍵取消
+  const centerField = document.querySelector('.center-field');
+  if (centerField) {
+    centerField.addEventListener('contextmenu', (e) => {
+      e.preventDefault();
+      if (window.awaitingTargetSelection) {
+        window.cancelTargetSelection(window.gameState, handlers);
       }
     });
   }
@@ -190,7 +229,7 @@ function initDecks(state, handlers) {
   }
 }
 
-// 🔧 修改：runPlayerTurn 函數 - 修復卡牌移除和抽牌
+// 🔧 修改：runPlayerTurn 函數 - 確保手牌上限檢查
 function runPlayerTurn(state, handlers) {
   try {
     const card = state.player.hand[state.selected];
@@ -211,13 +250,18 @@ function runPlayerTurn(state, handlers) {
         outcomeText.textContent = result.description;
       }
       
-      // 🔧 修復：確實移除卡牌並抽新牌
+      // 移除卡牌
       console.log('🗑️ 移除打者卡:', card.name);
       removeCardFromHand(state, state.selected);
       
-      // 🔧 修復：打者卡抽 2 張新牌
-      console.log('🎴 抽取新牌...');
-      draw(state.player, 2);
+      // 🔧 修復：檢查手牌上限再抽牌
+      if (state.player.hand.length < 7) {
+        const drawCount = Math.min(2, 7 - state.player.hand.length);
+        console.log('🎴 抽取新牌:', drawCount, '張');
+        draw(state.player, drawCount);
+      } else {
+        console.log('⚠️ 手牌已達上限，不抽牌');
+      }
       
     } else if (card.type === 'action') {
       // 戰術卡：檢查是否需要選擇目標
@@ -229,7 +273,7 @@ function runPlayerTurn(state, handlers) {
         console.log('🎭 執行戰術卡:', card.name);
         executeActionCard(card, state);
         
-        // 🔧 修復：移除戰術卡（戰術卡不抽牌）
+        // 移除戰術卡（戰術卡不抽牌）
         console.log('🗑️ 移除戰術卡:', card.name);
         removeCardFromHand(state, state.selected);
       }
@@ -269,25 +313,28 @@ function removeCardFromHand(state, cardIndex) {
 }
 
 
-// 🔧 修改：startTargetSelection 函數 - 同步更新全域狀態
+// 🔧 修改：startTargetSelection 函數 - 添加取消功能
 function startTargetSelection(card, state, handlers) {
   awaitingTargetSelection = true;
   pendingActionCard = card;
   
-  // 🔧 修復：同步更新 window 物件
+  // 同步更新 window 物件
   window.awaitingTargetSelection = true;
   window.pendingActionCard = card;
   
   const outcomeText = document.getElementById('outcome-text');
   if (outcomeText) {
     if (card.name === '滿腦子想著自己') {
-      outcomeText.textContent = `選擇手牌中的角色作為 ${card.name} 的目標...`;
+      outcomeText.textContent = `選擇手牌中的角色作為 ${card.name} 的目標... (右鍵取消)`;
     } else {
-      outcomeText.textContent = `選擇壘上的角色作為 ${card.name} 的目標...`;
+      outcomeText.textContent = `選擇壘上的角色作為 ${card.name} 的目標... (右鍵取消)`;
     }
   }
   
   highlightValidTargets(card, state);
+  
+  // 🆕 新增：添加取消選擇的監聽器
+  setupCancelTargetSelection(state, handlers);
   
   if (handlers && typeof handlers === 'object') {
     render(state, handlers);
@@ -296,7 +343,66 @@ function startTargetSelection(card, state, handlers) {
   console.log('🎯 開始目標選擇模式:', card.name);
 }
 
-// 🆕 新增：handleHandCardSelection 函數
+// 🆕 新增：取消目標選擇功能
+function setupCancelTargetSelection(state, handlers) {
+  const cancelHandler = (e) => {
+    if (e.button === 2 || e.key === 'Escape') { // 右鍵或 ESC 鍵
+      e.preventDefault();
+      cancelTargetSelection(state, handlers);
+    }
+  };
+  
+  document.addEventListener('contextmenu', cancelHandler, { once: true });
+  document.addEventListener('keydown', cancelHandler, { once: true });
+  
+  // 點擊空白區域也可以取消
+  const clickHandler = (e) => {
+    if (e.target.classList.contains('field') || e.target.classList.contains('center-field')) {
+      cancelTargetSelection(state, handlers);
+    }
+  };
+  
+  document.addEventListener('click', clickHandler, { once: true });
+}
+
+// 🆕 新增：cancelTargetSelection 函數 - 暴露到 main.js
+function cancelTargetSelection(state, handlers) {
+  console.log('❌ 主函數取消目標選擇');
+  
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = `已取消 ${pendingActionCard?.name || '戰術卡'} 的使用`;
+  }
+  
+  // 重置狀態
+  awaitingTargetSelection = false;
+  pendingActionCard = null;
+  window.awaitingTargetSelection = false;
+  window.pendingActionCard = null;
+  
+  if (state) {
+    state.selected = -1;
+  }
+  
+  // 清除高亮
+  document.querySelectorAll('.base, .hand-card').forEach(element => {
+    element.classList.remove('selectable-target');
+  });
+  
+  // 移除事件監聽器
+  document.removeEventListener('contextmenu', cancelTargetSelection);
+  document.removeEventListener('keydown', cancelTargetSelection);
+  document.removeEventListener('click', cancelTargetSelection);
+  
+  // 重新渲染
+  if (handlers && handlers.render) {
+    handlers.render(state, handlers);
+  } else if (render && state) {
+    render(state, handlers);
+  }
+}
+
+// 🔧 修改：handleHandCardSelection 函數 - 確保正確選擇
 function handleHandCardSelection(cardIndex, state, handlers) {
   if (!pendingActionCard) {
     console.warn('⚠️ 沒有待處理的戰術卡');
@@ -309,14 +415,15 @@ function handleHandCardSelection(cardIndex, state, handlers) {
     return;
   }
   
-  console.log('🎯 手牌目標選擇:', targetCard.name);
+  console.log('🎯 手牌目標選擇確認:', targetCard.name);
   
   // 執行戰術卡效果
   executeActionCard(pendingActionCard, state, targetCard, -1);
   
-  // 移除戰術卡
+  // 移除戰術卡（不是目標卡）
   const actionCardIndex = state.player.hand.findIndex(card => card === pendingActionCard);
   if (actionCardIndex !== -1) {
+    console.log('🗑️ 移除戰術卡:', pendingActionCard.name);
     removeCardFromHand(state, actionCardIndex);
   }
   
@@ -365,13 +472,13 @@ function handleTargetSelection(baseIndex, state, handlers) {
   }
 }
 
-// 🔧 修改：resetTargetSelection 函數 - 同步更新全域狀態
+// 🔧 修改：resetTargetSelection 函數 - 清理所有監聽器
 function resetTargetSelection(state) {
   awaitingTargetSelection = false;
   pendingActionCard = null;
   state.selected = -1;
   
-  // 🔧 修復：同步更新 window 物件
+  // 同步更新 window 物件
   window.awaitingTargetSelection = false;
   window.pendingActionCard = null;
   
@@ -380,8 +487,14 @@ function resetTargetSelection(state) {
     element.classList.remove('selectable-target');
   });
   
+  // 移除所有臨時事件監聽器
+  document.removeEventListener('contextmenu', cancelTargetSelection);
+  document.removeEventListener('keydown', cancelTargetSelection);
+  document.removeEventListener('click', cancelTargetSelection);
+  
   console.log('🔄 目標選擇狀態已重置');
 }
+
 // 🔧 修改：needsTargetSelection 函數 - 支援手牌目標選擇
 function needsTargetSelection(card) {
   const targetRequiredCards = [
@@ -393,22 +506,29 @@ function needsTargetSelection(card) {
   return targetRequiredCards.includes(card.name);
 }
 
-// 🔧 修改：highlightValidTargets 函數 - 支援手牌目標高亮
+// 🔧 修改：highlightValidTargets 函數 - 確保高亮生效
 function highlightValidTargets(card, state) {
   // 清除舊的高亮
   document.querySelectorAll('.base, .hand-card').forEach(element => {
     element.classList.remove('selectable-target');
   });
   
+  console.log('💡 開始高亮目標:', card.name);
+  
   if (card.name === '滿腦子想著自己') {
     // 高亮手牌中的打者卡
     state.player.hand.forEach((handCard, index) => {
       if (handCard.type === 'batter') {
-        const cardElement = document.querySelector(`[data-card-index="${index}"]`);
-        if (cardElement) {
-          cardElement.classList.add('selectable-target');
-          console.log('💡 高亮手牌目標:', handCard.name);
-        }
+        // 使用更可靠的選擇器
+        setTimeout(() => {
+          const cardElement = document.querySelector(`[data-card-index="${index}"].hand-card`);
+          if (cardElement) {
+            cardElement.classList.add('selectable-target');
+            console.log('💡 已高亮手牌:', handCard.name, 'index:', index);
+          } else {
+            console.warn('⚠️ 找不到手牌元素:', index);
+          }
+        }, 100); // 延遲確保 DOM 已更新
       }
     });
   } else if (card.name === '一輩子' || card.name === '想成為人類') {
@@ -416,11 +536,15 @@ function highlightValidTargets(card, state) {
     state.bases.forEach((baseCard, index) => {
       if (baseCard) {
         const baseIds = ['first-base', 'second-base', 'third-base'];
-        const baseElement = document.getElementById(baseIds[index]);
-        if (baseElement) {
-          baseElement.classList.add('selectable-target');
-          console.log('💡 高亮壘包目標:', baseIds[index], baseCard.name);
-        }
+        setTimeout(() => {
+          const baseElement = document.getElementById(baseIds[index]);
+          if (baseElement) {
+            baseElement.classList.add('selectable-target');
+            console.log('💡 已高亮壘包:', baseIds[index], baseCard.name);
+          } else {
+            console.warn('⚠️ 找不到壘包元素:', baseIds[index]);
+          }
+        }, 100);
       }
     });
   }
@@ -683,20 +807,24 @@ function changeHalfInning(state, handlers) {
   }
 }
 
+// 🔧 修改：simulateSimpleAtBat 函數 - 平衡得分
 function simulateSimpleAtBat(batter, pitcher) {
   const random = Math.random();
   
-  if (random < 0.2) {
+  // 🔧 修復：更平衡的機率分佈
+  if (random < 0.25) {  // 25% 出局機率
     return { type: 'K', description: `${batter.name} 三振出局`, points: 0 };
-  } else if (random < 0.3) {
+  } else if (random < 0.35) {  // 10% 其他出局
     return { type: 'OUT', description: `${batter.name} 出局`, points: 0 };
-  } else if (random < 0.4) {
+  } else if (random < 0.45) {  // 10% 保送
     return { type: 'BB', description: `${batter.name} 保送`, points: 1 };
-  } else if (random < 0.5) {
+  } else if (random < 0.52) {  // 7% 全壘打
     return { type: 'HR', description: `${batter.name} 全壘打！`, points: 4 };
-  } else if (random < 0.7) {
+  } else if (random < 0.65) {  // 13% 二壘安打
     return { type: '2B', description: `${batter.name} 二壘安打`, points: 2 };
-  } else {
+  } else if (random < 0.75) {  // 10% 三壘安打
+    return { type: '3B', description: `${batter.name} 三壘安打`, points: 3 };
+  } else {  // 25% 一壘安打
     return { type: '1B', description: `${batter.name} 一壘安打`, points: 1 };
   }
 }
@@ -776,12 +904,21 @@ function calculatePitcherOVR(stats) {
   return Math.max(40, Math.min(99, ovr));
 }
 
-// 🔧 修改：draw 函數 - 確保正確抽牌
+// 🔧 修改：draw 函數 - 限制手牌上限為 7 張
 function draw(player, numToDraw) {
   console.log('🎴 開始抽牌:', numToDraw, '張');
   console.log('📊 抽牌前 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
   
-  for (let i = 0; i < numToDraw; i++) {
+  // 🔧 修復：檢查手牌上限 7 張
+  if (player.hand.length >= 7) {
+    console.log('⚠️ 手牌已達上限 (7張)，停止抽牌');
+    return;
+  }
+  
+  const actualDrawCount = Math.min(numToDraw, 7 - player.hand.length);
+  console.log('🎴 實際抽牌數量:', actualDrawCount);
+  
+  for (let i = 0; i < actualDrawCount; i++) {
     // 如果牌庫空了，從棄牌堆重新洗牌
     if (player.deck.length === 0) {
       if (player.discard.length === 0) {
@@ -796,12 +933,6 @@ function draw(player, numToDraw) {
       console.log('🔀 重新洗牌完成，牌庫數量:', player.deck.length);
     }
     
-    // 檢查手牌上限
-    if (player.hand.length >= 10) {
-      console.warn('⚠️ 手牌已達上限 (10張)，停止抽牌');
-      break;
-    }
-    
     if (player.deck.length > 0) {
       const drawnCard = player.deck.pop();
       player.hand.push(drawnCard);
@@ -810,7 +941,7 @@ function draw(player, numToDraw) {
   }
   
   console.log('📊 抽牌後 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
-} 
+}
 
 function shuffle(deck) {
   for (let i = deck.length - 1; i > 0; i--) {
