@@ -176,6 +176,7 @@ function initDecks(state) {
   }
 }
 
+// 🔧 修復：runPlayerTurn 函數 - 解決 strict mode 錯誤和卡牌移除問題
 function runPlayerTurn(state) {
   try {
     const card = state.player.hand[state.selected];
@@ -196,38 +197,24 @@ function runPlayerTurn(state) {
         outcomeText.textContent = result.description;
       }
       
-      // 移除卡牌並抽 2 張
-      state.player.hand.splice(state.selected, 1);
-      state.player.discard.push(card);
+      // 🔧 修復：正確移除卡牌並抽新牌
+      removeCardFromHand(state, state.selected);
       draw(state.player, 2);
-      state.selected = -1;
       
     } else if (card.type === 'action') {
       // 戰術卡：檢查是否需要選擇目標
       if (needsTargetSelection(card)) {
-        awaitingTargetSelection = true;
-        pendingActionCard = card;
-        
-        const outcomeText = document.getElementById('outcome-text');
-        if (outcomeText) {
-          outcomeText.textContent = `選擇 ${card.name} 的目標...`;
-        }
-        
-        // 高亮可選目標
-        highlightValidTargets(card, state);
-        render(state, arguments.callee.caller.arguments[0]); // 傳遞 handlers
-        return;
+        startTargetSelection(card, state);
+        return; // 🔧 修復：等待目標選擇，不繼續執行
       } else {
         // 直接執行戰術卡
         executeActionCard(card, state);
-        
-        // 移除卡牌（戰術卡不抽卡）
-        state.player.hand.splice(state.selected, 1);
-        state.player.discard.push(card);
-        state.selected = -1;
+        removeCardFromHand(state, state.selected);
       }
     }
     
+    // 🔧 修復：重置選擇狀態
+    state.selected = -1;
     console.log('✅ 玩家回合完成，手牌數量:', state.player.hand.length);
     
     if (state.outs >= 3) {
@@ -238,6 +225,68 @@ function runPlayerTurn(state) {
     console.error('❌ 玩家回合失敗:', error);
     showErrorMessage(`玩家回合失敗: ${error.message}`);
   }
+}
+
+// 🆕 新增：正確的卡牌移除函數
+function removeCardFromHand(state, cardIndex) {
+  if (cardIndex >= 0 && cardIndex < state.player.hand.length) {
+    const removedCard = state.player.hand.splice(cardIndex, 1)[0];
+    state.player.discard.push(removedCard);
+    console.log('🗑️ 移除卡牌:', removedCard.name);
+    return removedCard;
+  }
+  return null;
+}
+
+// 🆕 新增：目標選擇開始函數
+function startTargetSelection(card, state) {
+  awaitingTargetSelection = true;
+  pendingActionCard = card;
+  
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = `選擇 ${card.name} 的目標...`;
+  }
+  
+  highlightValidTargets(card, state);
+  
+  // 🔧 修復：重新渲染以顯示高亮效果
+  const handlers = getCurrentHandlers(); // 需要定義這個函數
+  render(state, handlers);
+}
+
+// 🆕 新增：目標選擇處理函數
+function handleTargetSelection(baseIndex, state) {
+  if (!pendingActionCard) return;
+  
+  const targetCard = state.bases[baseIndex];
+  if (!targetCard) return;
+  
+  console.log('🎯 目標選擇:', targetCard.name);
+  
+  // 執行戰術卡效果
+  executeActionCard(pendingActionCard, state, targetCard, baseIndex);
+  
+  // 移除卡牌
+  const cardIndex = state.player.hand.indexOf(pendingActionCard);
+  if (cardIndex !== -1) {
+    removeCardFromHand(state, cardIndex);
+  }
+  
+  // 重置選擇狀態
+  resetTargetSelection(state);
+}
+
+// 🆕 新增：重置目標選擇狀態
+function resetTargetSelection(state) {
+  awaitingTargetSelection = false;
+  pendingActionCard = null;
+  state.selected = -1;
+  
+  // 移除高亮
+  document.querySelectorAll('.base').forEach(base => {
+    base.classList.remove('selectable-target');
+  });
 }
 
 function needsTargetSelection(card) {
@@ -302,6 +351,7 @@ function handleTargetSelection(baseIndex, state) {
   render(state, arguments.callee.caller.arguments[0]);
 }
 
+// 🔧 修復：executeActionCard 函數 - 增強一輩子效果
 function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
   let description = "";
   
@@ -309,12 +359,15 @@ function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
     case '一輩子':
       if (targetCard) {
         targetCard.locked = true;
-        description = `${targetCard.name} 被鎖定在壘上！`;
+        description = `${targetCard.name} 被鎖定在 ${targetIndex + 1} 壘上！一輩子...`;
+        console.log('🔒 角色被鎖定:', targetCard.name);
+      } else {
+        description = `${card.name}: 需要選擇壘上的目標！`;
       }
       break;
       
     case "It's MyGO!!!!!":
-      // 為壘上的 MyGO 成員加成
+      let affectedCount = 0;
       state.bases.forEach(baseCard => {
         if (baseCard && baseCard.band === 'MyGO!!!!!') {
           baseCard.tempBonus = baseCard.tempBonus || {};
@@ -322,22 +375,24 @@ function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
           baseCard.tempBonus.hitRate = (baseCard.tempBonus.hitRate || 0) + 15;
           baseCard.tempBonus.contact = (baseCard.tempBonus.contact || 0) + 15;
           baseCard.tempBonus.speed = (baseCard.tempBonus.speed || 0) + 15;
+          affectedCount++;
         }
       });
-      description = "MyGO!!!!! 成員全數值+15！";
+      description = `It's MyGO!!!!! - ${affectedCount}名成員全數值+15！`;
       break;
       
     case '想成為人類':
       if (targetCard) {
-        // 移除負面狀態並設置速度為 99
         targetCard.tempBonus = targetCard.tempBonus || {};
         targetCard.tempBonus.speed = 99;
         description = `${targetCard.name} 想成為人類！速度設為 99！`;
+      } else {
+        description = `${card.name}: 需要選擇目標！`;
       }
       break;
       
     default:
-      description = `${card.name} 戰術卡使用！`;
+      description = `${card.name} 戰術卡發動！`;
   }
   
   const outcomeText = document.getElementById('outcome-text');

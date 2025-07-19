@@ -151,18 +151,19 @@
             z-index: 2;
         }
 
-        /* 壘包區域 */
-        .bases-container { 
-            display: flex; 
-            gap: 1.5rem; 
-            align-items: center;
-            justify-content: center;
-            flex-direction: row;
+        /* 🔧 修復：正確的壘包順序 - 3B-2B-1B */
+        .bases-container {
+            display: flex !important;
+            gap: 2rem !important;
+            align-items: center !important;
+            justify-content: center !important;
+            flex-direction: row !important;
         }
         
-        #base-2 { order: 1; } /* 3B */
-        #base-1 { order: 2; } /* 2B */  
-        #base-0 { order: 3; } /* 1B */
+        /* 使用 CSS order 屬性確保正確順序 */
+        #third-base { order: 1; }  /* 3B 顯示在最左邊 */
+        #second-base { order: 2; } /* 2B 顯示在中間 */
+        #first-base { order: 3; }  /* 1B 顯示在最右邊 */
 
         .base { 
             width: 50px; 
@@ -193,9 +194,10 @@
             border-color: #a93226; 
             box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); 
             color: #fff; 
-            animation: lockedPulse 2s infinite;
+            animation: lockedPulse 2s infinite !important;
         }
         
+        /* 🆕 新增：目標選擇高亮效果 */
         .base.selectable-target {
             border-color: #e74c3c !important;
             box-shadow: 0 0 30px rgba(231, 76, 60, 0.9) !important;
@@ -205,10 +207,17 @@
         }
 
         @keyframes targetPulse {
-            0%, 100% { transform: scale(1.05); }
-            50% { transform: scale(1.15); }
+            0%, 100% { 
+                transform: scale(1.05); 
+                box-shadow: 0 0 30px rgba(231, 76, 60, 0.9);
+            }
+            50% { 
+                transform: scale(1.15); 
+                box-shadow: 0 0 35px rgba(231, 76, 60, 1);
+            }
         }
 
+        /* 🆕 新增：增強的壘包球員資訊 */
         .base-player-info {
             display: flex;
             flex-direction: column;
@@ -247,8 +256,14 @@
         }
         
         @keyframes lockedPulse {
-            0%, 100% { background: linear-gradient(145deg, #e74c3c, #c0392b); transform: scale(1); }
-            50% { background: linear-gradient(145deg, #c0392b, #e74c3c); transform: scale(1.03); }
+            0%, 100% { 
+                background: linear-gradient(145deg, #e74c3c, #c0392b);
+                transform: scale(1);
+            }
+            50% { 
+                background: linear-gradient(145deg, #c0392b, #e74c3c);
+                transform: scale(1.03);
+            }
         }
 
         /* 卡牌基本樣式 */
@@ -314,9 +329,17 @@
         
         .bonus-indicator {
             position: absolute;
-            bottom: 5px;
-            right: 5px;
-            font-size: 1rem;
+            top: 5px;
+            left: 5px;
+            font-size: 0.8rem;
+            color: #f1c40f;
+            animation: sparkle 2s infinite;
+            z-index: 10;
+        }
+
+        @keyframes sparkle {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.7; transform: scale(1.2); }
         }
 
         .card-stats { 
@@ -326,6 +349,23 @@
             margin-bottom: 0.4rem; 
             line-height: 1.2;
         }
+
+        /* 🆕 新增：拖拽增強效果 */
+        .card.dragging {
+            opacity: 0.8 !important;
+            transform: rotate(8deg) scale(1.1) !important;
+            z-index: 1000 !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
+        }
+
+        /* 🆕 新增：臨時加成數值顯示 */
+        .card-stats.buffed {
+            color: #27ae60 !important;
+            font-weight: bold !important;
+            text-shadow: 0 0 5px rgba(39, 174, 96, 0.5) !important;
+        }
+
+        
 
         .card-description { 
             font-size: 0.65rem; 
@@ -397,7 +437,8 @@
             z-index: 20;
         }
 
-        .special-state { 
+        /* 🆕 新增：特殊狀態樣式增強 */
+        .special-state {
             background: rgba(0,0,0,0.9) !important;
             padding: 8px 14px !important;
             border-radius: 10px !important;
@@ -406,20 +447,25 @@
             border: 2px solid !important;
             backdrop-filter: blur(5px) !important;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+            margin-bottom: 8px !important;
         }
 
-        .special-state.mygo-synergy { 
+        .special-state.mygo-synergy {
             color: #3498db !important;
             border-color: #3498db !important;
             animation: mygoGlow 2s infinite !important;
         }
 
-        .special-state.mujica-synergy { 
+        .special-state.mujica-synergy {
             color: #9b59b6 !important;
             border-color: #9b59b6 !important;
             animation: mujicaGlow 2s infinite !important;
         }
-        
+        .special-state.locked {
+            color: #e74c3c !important;
+            border-color: #e74c3c !important;
+        }
+                
         @keyframes mygoGlow {
             0%, 100% { box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
             50% { box-shadow: 0 0 20px rgba(52, 152, 219, 0.8); }
@@ -534,14 +580,15 @@
             min-width: 120px !important;
             transition: all 0.3s ease !important;
         }
-
+        /* 🆕 新增：增強的卡牌懸停效果 */
         .hand .card:hover { 
-            transform: translateY(-25px) scale(1.2) !important;
-            border-color: #f1c40f !important;
+            transform: translateY(-25px) scale(1.2) !important; 
+            border-color: #f1c40f !important; 
             box-shadow: 0 15px 40px rgba(0,0,0,0.7) !important;
             z-index: 150 !important;
+            transition: all 0.3s ease !important;
         }
-        
+
         .hand .card:hover .card-description {
             font-size: 0.8rem !important;
             -webkit-line-clamp: 6 !important;
@@ -619,7 +666,7 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
         }
 
-        #batter-zone.drag-over {
+        .batter-zone.drag-over {
             border-color: #f1c40f !important;
             background: rgba(241, 196, 15, 0.3) !important;
             transform: scale(1.08) !important;
@@ -682,6 +729,7 @@
             transform: translateY(-2px);
         }
         
+        /* 🆕 新增：工具提示樣式 */
         .card-tooltip {
             position: absolute !important;
             background: rgba(0,0,0,0.95) !important;

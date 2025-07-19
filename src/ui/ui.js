@@ -53,34 +53,50 @@ function renderInning(inning, half) {
   inningDisplay.textContent = `${inning}${inningSuffix} ${halfText}`;
 }
 
+// 🔧 修復：renderBases 函數 - 正確的壘包順序和目標選擇
 function renderBases(bases, baseClickHandler) {
-  const baseNames = ['first-base', 'second-base', 'third-base'];
+  // 🔧 修復：正確的壘包順序 3B-2B-1B
+  const baseConfig = [
+    { id: 'first-base', index: 0, label: '1B', order: 3 },   // 1B 顯示在最右邊
+    { id: 'second-base', index: 1, label: '2B', order: 2 },  // 2B 顯示在中間  
+    { id: 'third-base', index: 2, label: '3B', order: 1 }    // 3B 顯示在最左邊
+  ];
   
-  bases.forEach((card, index) => {
-    const baseElement = document.getElementById(baseNames[index]);
-    if (!baseElement) return;
+  baseConfig.forEach(({ id, index, label, order }) => {
+    let baseElement = document.getElementById(id);
+    const card = bases[index];
     
-    baseElement.id = `base-${index}`;
+    // 🆕 新增：確保壘包元素存在
+    if (!baseElement) {
+      console.warn(`⚠️ 找不到壘包元素: ${id}`);
+      return;
+    }
+    
+    // 設置壘包順序（CSS order 屬性）
+    baseElement.style.order = order;
+    baseElement.dataset.baseIndex = index;
+    
+    // 更新壘包狀態
     baseElement.classList.toggle('occupied', !!card);
     baseElement.classList.toggle('locked', card && card.locked);
     
     if (card) {
-      // 顯示球員資訊
-      const playerInfo = document.createElement('div');
-      playerInfo.className = 'base-player-info';
-      playerInfo.innerHTML = `
-        <div class="player-name">${card.name}</div>
-        <div class="player-band">${card.band}</div>
-        ${card.locked ? '<div class="locked-indicator">🔒</div>' : ''}
+      // 🔧 修復：顯示詳細的球員資訊
+      baseElement.innerHTML = `
+        <div class="base-player-info">
+          <div class="player-name">${card.name}</div>
+          <div class="player-band">${card.band || ''}</div>
+          ${card.locked ? '<div class="locked-indicator">🔒</div>' : ''}
+        </div>
       `;
       
-      baseElement.innerHTML = '';
-      baseElement.appendChild(playerInfo);
-      
-      // 綁定點擊事件
-      if (baseClickHandler) {
-        baseElement.onclick = () => baseClickHandler(index);
-      }
+      // 🔧 修復：綁定點擊事件用於目標選擇
+      baseElement.onclick = () => {
+        console.log('🎯 壘包點擊:', index, card.name);
+        if (baseClickHandler) {
+          baseClickHandler(index);
+        }
+      };
       
       // 顯示光環效果
       if (card.effects && card.effects.aura) {
@@ -89,14 +105,13 @@ function renderBases(bases, baseClickHandler) {
       }
       
     } else {
-      baseElement.innerHTML = `${index + 1}B`;
+      baseElement.innerHTML = label;
       baseElement.onclick = null;
       baseElement.title = '';
-      baseElement.classList.remove('has-aura');
+      baseElement.classList.remove('has-aura', 'selectable-target');
     }
   });
 }
-
 function renderBatterZone(state) {
   let batterZone = document.getElementById('batter-zone');
   if (!batterZone) {
@@ -155,6 +170,7 @@ function renderPitchers(cpuPitcher, playerPitcher) {
   }
 }
 
+// 🔧 修復：renderHand 函數 - 增強懸停效果和拖拽
 function renderHand(hand, selectedIndex, handlers) {
   const handContainer = document.getElementById('player-hand');
   if (!handContainer) return;
@@ -166,92 +182,157 @@ function renderHand(hand, selectedIndex, handlers) {
   });
   
   handContainer.innerHTML = '';
-  handContainer.style.flexWrap = 'nowrap';
-  handContainer.style.overflowX = 'auto';
-  handContainer.style.maxWidth = '100%';
   
   hand.forEach((card, index) => {
-    const cardEl = document.createElement('div');
-    cardEl.className = 'card hand-card';
-    cardEl.setAttribute('data-card-index', index);
-    cardEl.draggable = true;
-    
-    if (index === selectedIndex) {
-      cardEl.classList.add('selected');
-    }
-    
-    if (card.type === 'action') {
-      cardEl.classList.add('action-card');
-    } else if (card.type === 'batter') {
-      cardEl.classList.add('batter-card');
-    }
-    
-    // 計算動態數值（包含臨時加成）
-    const dynamicStats = calculateDynamicStats(card);
-    
-    let cardStats = '';
-    if (card.type === 'batter') {
-      cardStats = `
-        <div class="card-stats">
-          POW: ${dynamicStats.power} HIT: ${dynamicStats.hitRate}<br>
-          CON: ${dynamicStats.contact} SPD: ${dynamicStats.speed}
-        </div>
-      `;
-    }
-    
-    const description = getCardDescription(card);
-    const instrument = card.instrument ? `<div class="card-instrument">🎵 ${card.instrument}</div>` : '';
-    const band = card.band ? `<div class="card-band">${card.band}</div>` : '';
-    
-    // 如果有臨時加成，顯示綠色數值
-    const bonusIndicator = hasTempBonus(card) ? '<div class="bonus-indicator">✨</div>' : '';
-    
-    cardEl.innerHTML = `
-      <div class="card-name">${card.name}</div>
-      <div class="card-ovr">${card.ovr}</div>
-      ${cardStats}
-      ${instrument}
-      ${band}
-      <div class="card-description">${description}</div>
-      ${bonusIndicator}
-    `;
-    
-    // 點擊事件
-    cardEl.addEventListener('click', (e) => {
-      e.preventDefault();
-      console.log('🎯 卡牌點擊:', index, card.name);
-      if (handlers.select) {
-        handlers.select(index);
-      }
-    });
-    
-    // 拖拽事件
-    cardEl.addEventListener('dragstart', (e) => {
-      console.log('🎯 開始拖拽:', index, card.name);
-      cardEl.classList.add('dragging');
-      e.dataTransfer.setData('text/plain', index.toString());
-    });
-    
-    cardEl.addEventListener('dragend', (e) => {
-      console.log('🎯 拖拽結束:', index);
-      cardEl.classList.remove('dragging');
-    });
-    
-    cardEl.tabIndex = 0;
-    cardEl.addEventListener('keydown', (e) => {
-      if (e.key === 'Enter' || e.key === ' ') {
-        e.preventDefault();
-        if (handlers.select) {
-          handlers.select(index);
-        }
-      }
-    });
-    
+    const cardEl = createEnhancedCardElement(card, index, selectedIndex, handlers);
     handContainer.appendChild(cardEl);
   });
 }
 
+// 🆕 新增：創建增強的卡牌元素
+function createEnhancedCardElement(card, index, selectedIndex, handlers) {
+  const cardEl = document.createElement('div');
+  cardEl.className = 'card hand-card';
+  cardEl.setAttribute('data-card-index', index);
+  cardEl.draggable = true;
+  
+  if (index === selectedIndex) {
+    cardEl.classList.add('selected');
+  }
+  
+  if (card.type === 'action') {
+    cardEl.classList.add('action-card');
+  } else if (card.type === 'batter') {
+    cardEl.classList.add('batter-card');
+  }
+  
+  // 🔧 修復：計算動態數值（包含臨時加成）
+  const dynamicStats = calculateDynamicStats(card);
+  
+  let cardStats = '';
+  if (card.type === 'batter') {
+    // 🔧 修復：顯示臨時加成的數值
+    const hasBonus = hasTempBonus(card);
+    const statsClass = hasBonus ? 'card-stats buffed' : 'card-stats';
+    
+    cardStats = `
+      <div class="${statsClass}">
+        POW: ${dynamicStats.power} HIT: ${dynamicStats.hitRate}<br>
+        CON: ${dynamicStats.contact} SPD: ${dynamicStats.speed}
+      </div>
+    `;
+  }
+  
+  const description = getCardDescription(card);
+  const instrument = card.instrument ? `<div class="card-instrument">🎵 ${card.instrument}</div>` : '';
+  const band = card.band ? `<div class="card-band">${card.band}</div>` : '';
+  const bonusIndicator = hasTempBonus(card) ? '<div class="bonus-indicator">✨</div>' : '';
+  
+  cardEl.innerHTML = `
+    <div class="card-name">${card.name}</div>
+    <div class="card-ovr">${card.ovr}</div>
+    ${cardStats}
+    ${instrument}
+    ${band}
+    <div class="card-description">${description}</div>
+    ${bonusIndicator}
+  `;
+  
+  // 🔧 修復：增強的事件處理
+  setupCardEvents(cardEl, card, index, handlers);
+  
+  return cardEl;
+}
+
+// 🆕 新增：設置卡牌事件處理
+function setupCardEvents(cardEl, card, index, handlers) {
+  // 點擊選擇
+  cardEl.addEventListener('click', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('🎯 卡牌點擊:', index, card.name);
+    if (handlers.select) {
+      handlers.select(index);
+    }
+  });
+  
+  // 🔧 修復：拖拽事件
+  cardEl.addEventListener('dragstart', (e) => {
+    console.log('🎯 開始拖拽:', index, card.name);
+    cardEl.classList.add('dragging');
+    e.dataTransfer.setData('text/plain', index.toString());
+  });
+  
+  cardEl.addEventListener('dragend', (e) => {
+    console.log('🎯 拖拽結束:', index);
+    cardEl.classList.remove('dragging');
+  });
+  
+  // 🆕 新增：懸停工具提示
+  cardEl.addEventListener('mouseenter', (e) => {
+    showCardTooltip(card, e.pageX, e.pageY);
+  });
+  
+  cardEl.addEventListener('mouseleave', () => {
+    hideCardTooltip();
+  });
+}
+
+// 🆕 新增：卡牌工具提示系統
+let currentTooltip = null;
+
+function showCardTooltip(card, x, y) {
+  hideCardTooltip(); // 移除現有工具提示
+  
+  currentTooltip = document.createElement('div');
+  currentTooltip.className = 'card-tooltip';
+  currentTooltip.style.cssText = `
+    position: absolute;
+    left: ${x + 15}px;
+    top: ${y - 80}px;
+    background: rgba(0,0,0,0.95);
+    color: #fff;
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    border: 2px solid #4a5a6a;
+    font-size: 0.9rem;
+    max-width: 350px;
+    word-wrap: break-word;
+    z-index: 2000;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.6);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+  `;
+  
+  let tooltipContent = `<strong>${card.name}</strong><br>`;
+  
+  if (card.type === 'batter' && card.stats) {
+    const stats = calculateDynamicStats(card);
+    tooltipContent += `<span style="color: #f1c40f;">POW: ${stats.power} | HIT: ${stats.hitRate}<br>`;
+    tooltipContent += `CON: ${stats.contact} | SPD: ${stats.speed}</span><br>`;
+  }
+  
+  if (card.band) {
+    tooltipContent += `<em style="color: #3498db;">${card.band}</em><br>`;
+  }
+  
+  if (card.description) {
+    tooltipContent += `<br><span style="color: #bdc3c7;">${card.description}</span>`;
+  }
+  
+  currentTooltip.innerHTML = tooltipContent;
+  document.body.appendChild(currentTooltip);
+}
+function hideCardTooltip() {
+  if (currentTooltip && currentTooltip.parentNode) {
+    currentTooltip.parentNode.removeChild(currentTooltip);
+    currentTooltip = null;
+  }
+}
+// 🔧 修復：calculateDynamicStats 函數
 function calculateDynamicStats(card) {
+  if (!card.stats) return {};
+  
   const baseStats = { ...card.stats };
   
   // 應用臨時加成
@@ -271,9 +352,11 @@ function calculateDynamicStats(card) {
   return baseStats;
 }
 
+// 🆕 新增：檢查是否有臨時加成
 function hasTempBonus(card) {
   return card.tempBonus && Object.keys(card.tempBonus).length > 0;
 }
+
 
 function renderMainButton(state, buttonHandler) {
   const button = document.getElementById('main-button');
@@ -341,28 +424,30 @@ function renderActiveEffects(activeEffects) {
   }
 }
 
+// 🔧 修復：renderSpecialStates 函數 - 顯示特殊狀態
 function renderSpecialStates(state) {
   const container = document.getElementById('special-states');
   if (!container) return;
   
   container.innerHTML = '';
   
-  // 檢查MyGO協同
-  if (state.mygoInitialized) {
-    const mygoOnBase = state.bases.filter(card => card && card.band === 'MyGO!!!!!').length;
-    const mujicaOnBase = state.bases.filter(card => card && card.band === 'Mujica').length;
+  // 檢查 MyGO 協同
+  if (state.player.team.id === 'MGO') {
+    const mygoOnBase = state.bases.filter(card => 
+      card && card.band === 'MyGO!!!!!'
+    ).length;
+    
+    const mujicaOnBase = state.bases.filter(card => 
+      card && card.band === 'Mujica'
+    ).length;
     
     if (mygoOnBase >= 3) {
-      const stateEl = document.createElement('div');
-      stateEl.className = 'special-state mygo-synergy';
-      stateEl.textContent = `🎵 MyGO協同 (${mygoOnBase}人)`;
+      const stateEl = createSpecialStateElement('🎵 MyGO協同', mygoOnBase, 'mygo-synergy');
       container.appendChild(stateEl);
     }
     
     if (mujicaOnBase >= 3) {
-      const stateEl = document.createElement('div');
-      stateEl.className = 'special-state mujica-synergy';
-      stateEl.textContent = `🖤 Mujica威壓 (${mujicaOnBase}人)`;
+      const stateEl = createSpecialStateElement('🖤 Mujica威壓', mujicaOnBase, 'mujica-synergy');
       container.appendChild(stateEl);
     }
   }
@@ -370,11 +455,18 @@ function renderSpecialStates(state) {
   // 檢查鎖定角色
   const lockedCount = state.bases.filter(card => card && card.locked).length;
   if (lockedCount > 0) {
-    const stateEl = document.createElement('div');
-    stateEl.className = 'special-state locked';
-    stateEl.textContent = `🔒 鎖定 (${lockedCount}人)`;
+    const stateEl = createSpecialStateElement('🔒 鎖定', lockedCount, 'locked');
     container.appendChild(stateEl);
   }
+}
+
+
+// 🆕 新增：創建特殊狀態元素
+function createSpecialStateElement(text, count, type) {
+  const stateEl = document.createElement('div');
+  stateEl.className = `special-state ${type}`;
+  stateEl.textContent = `${text} (${count}人)`;
+  return stateEl;
 }
 
 function getCardDescription(card) {
