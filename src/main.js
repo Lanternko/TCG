@@ -7,6 +7,14 @@ let draggedCard = null;
 let draggedCardIndex = -1;
 let awaitingTargetSelection = false;
 let pendingActionCard = null;
+// 🆕 新增：全域遊戲狀態引用，供 UI 模組使用
+let currentGameState = null;
+let currentHandlers = null;
+// 🆕 新增：暴露到 window 物件供跨模組使用
+window.awaitingTargetSelection = false;
+window.pendingActionCard = null;
+window.gameState = null;
+window.handleHandCardSelection = null;
 
 async function initializeGame() {
   try {
@@ -36,11 +44,15 @@ async function initializeGame() {
   }
 }
 
+// 🔧 修改：startGame 函數 - 正確初始化狀態
 function startGame() {
   try {
     console.log('🎯 開始初始化遊戲...');
     
     const state = createGameState();
+    currentGameState = state;
+    window.gameState = state;
+    
     console.log('✅ 遊戲狀態創建成功');
     
     const mygoTeam = TEAMS.find(team => team.id === "MGO");
@@ -64,31 +76,32 @@ function startGame() {
         const gameStarted = !!state.cpu.activePitcher;
         
         if (!gameStarted) {
-          initDecks(state);
+          initDecks(state, handlers);
         } else if (state.playerTurn && state.selected !== -1) {
-          runPlayerTurn(state);
+          runPlayerTurn(state, handlers);
         }
         
         render(state, handlers);
       },
       
-      // 壘包點擊處理（用於選擇目標）
       baseClick: (baseIndex) => {
         console.log('🎯 壘包點擊:', baseIndex);
         if (awaitingTargetSelection && state.bases[baseIndex]) {
-          handleTargetSelection(baseIndex, state);
+          handleTargetSelection(baseIndex, state, handlers);
         }
       },
       
-      // 拖拽到打擊位置
       dragToBatter: (cardIndex) => {
         console.log('🎯 拖拽到打擊位置:', cardIndex);
         if (state.playerTurn && !awaitingTargetSelection) {
           state.selected = cardIndex;
-          runPlayerTurn(state);
+          runPlayerTurn(state, handlers);
         }
       }
     };
+    
+    currentHandlers = handlers;
+    window.handleHandCardSelection = handleHandCardSelection;
     
     setupDragDropZones(handlers);
     render(state, handlers);
@@ -137,7 +150,8 @@ function setupDragDropZones(handlers) {
   }
 }
 
-function initDecks(state) {
+// 🔧 修改：initDecks 函數 - 傳遞 handlers
+function initDecks(state, handlers) {
   try {
     console.log('🎯 初始化牌組...');
     
@@ -148,7 +162,7 @@ function initDecks(state) {
     state.player.hand = [];
     state.player.pitcher = prepareCard(playerTeam.pitchers[0]);
     
-    // 修復：起手 5 張卡
+    // 🔧 修復：起手 5 張卡
     draw(state.player, 5);
     
     const cpuTeam = TEAMS.find(team => team.id === "NYY");
@@ -167,7 +181,7 @@ function initDecks(state) {
     }
     
     setTimeout(() => {
-      runCpuTurn(state);
+      runCpuTurn(state, handlers);
     }, 1000);
     
   } catch (error) {
@@ -176,8 +190,8 @@ function initDecks(state) {
   }
 }
 
-// 🔧 修復：runPlayerTurn 函數 - 解決 strict mode 錯誤和卡牌移除問題
-function runPlayerTurn(state) {
+// 🔧 修改：runPlayerTurn 函數 - 修復卡牌移除和抽牌
+function runPlayerTurn(state, handlers) {
   try {
     const card = state.player.hand[state.selected];
     if (!card) {
@@ -185,7 +199,7 @@ function runPlayerTurn(state) {
       return;
     }
     
-    console.log('🎯 玩家回合:', card.name);
+    console.log('🎯 玩家回合:', card.name, '類型:', card.type);
     
     if (card.type === 'batter') {
       // 打者卡：進行打擊
@@ -197,28 +211,39 @@ function runPlayerTurn(state) {
         outcomeText.textContent = result.description;
       }
       
-      // 🔧 修復：正確移除卡牌並抽新牌
+      // 🔧 修復：確實移除卡牌並抽新牌
+      console.log('🗑️ 移除打者卡:', card.name);
       removeCardFromHand(state, state.selected);
+      
+      // 🔧 修復：打者卡抽 2 張新牌
+      console.log('🎴 抽取新牌...');
       draw(state.player, 2);
       
     } else if (card.type === 'action') {
       // 戰術卡：檢查是否需要選擇目標
       if (needsTargetSelection(card)) {
-        startTargetSelection(card, state);
-        return; // 🔧 修復：等待目標選擇，不繼續執行
+        startTargetSelection(card, state, handlers);
+        return; // 等待目標選擇，不移除卡牌
       } else {
         // 直接執行戰術卡
+        console.log('🎭 執行戰術卡:', card.name);
         executeActionCard(card, state);
+        
+        // 🔧 修復：移除戰術卡（戰術卡不抽牌）
+        console.log('🗑️ 移除戰術卡:', card.name);
         removeCardFromHand(state, state.selected);
       }
     }
     
-    // 🔧 修復：重置選擇狀態
+    // 重置選擇狀態
     state.selected = -1;
     console.log('✅ 玩家回合完成，手牌數量:', state.player.hand.length);
     
+    // 重新渲染以更新UI
+    render(state, handlers);
+    
     if (state.outs >= 3) {
-      setTimeout(() => changeHalfInning(state), 1500);
+      setTimeout(() => changeHalfInning(state, handlers), 1500);
     }
     
   } catch (error) {
@@ -227,131 +252,184 @@ function runPlayerTurn(state) {
   }
 }
 
-// 🆕 新增：正確的卡牌移除函數
+// 🔧 修改：removeCardFromHand 函數 - 確保正確移除
 function removeCardFromHand(state, cardIndex) {
-  if (cardIndex >= 0 && cardIndex < state.player.hand.length) {
-    const removedCard = state.player.hand.splice(cardIndex, 1)[0];
-    state.player.discard.push(removedCard);
-    console.log('🗑️ 移除卡牌:', removedCard.name);
-    return removedCard;
+  if (cardIndex < 0 || cardIndex >= state.player.hand.length) {
+    console.warn('⚠️ 無效的卡牌索引:', cardIndex, '手牌數量:', state.player.hand.length);
+    return null;
   }
-  return null;
+  
+  const removedCard = state.player.hand.splice(cardIndex, 1)[0];
+  state.player.discard.push(removedCard);
+  
+  console.log('🗑️ 成功移除卡牌:', removedCard.name, '→ 棄牌堆');
+  console.log('📊 當前狀態 - 手牌:', state.player.hand.length, '棄牌:', state.player.discard.length);
+  
+  return removedCard;
 }
 
-// 🆕 新增：目標選擇開始函數
-function startTargetSelection(card, state) {
+
+// 🔧 修改：startTargetSelection 函數 - 同步更新全域狀態
+function startTargetSelection(card, state, handlers) {
   awaitingTargetSelection = true;
   pendingActionCard = card;
   
+  // 🔧 修復：同步更新 window 物件
+  window.awaitingTargetSelection = true;
+  window.pendingActionCard = card;
+  
   const outcomeText = document.getElementById('outcome-text');
   if (outcomeText) {
-    outcomeText.textContent = `選擇 ${card.name} 的目標...`;
+    if (card.name === '滿腦子想著自己') {
+      outcomeText.textContent = `選擇手牌中的角色作為 ${card.name} 的目標...`;
+    } else {
+      outcomeText.textContent = `選擇壘上的角色作為 ${card.name} 的目標...`;
+    }
   }
   
   highlightValidTargets(card, state);
   
-  // 🔧 修復：重新渲染以顯示高亮效果
-  const handlers = getCurrentHandlers(); // 需要定義這個函數
-  render(state, handlers);
+  if (handlers && typeof handlers === 'object') {
+    render(state, handlers);
+  }
+  
+  console.log('🎯 開始目標選擇模式:', card.name);
 }
 
-// 🆕 新增：目標選擇處理函數
-function handleTargetSelection(baseIndex, state) {
-  if (!pendingActionCard) return;
+// 🆕 新增：handleHandCardSelection 函數
+function handleHandCardSelection(cardIndex, state, handlers) {
+  if (!pendingActionCard) {
+    console.warn('⚠️ 沒有待處理的戰術卡');
+    return;
+  }
   
-  const targetCard = state.bases[baseIndex];
-  if (!targetCard) return;
+  const targetCard = state.player.hand[cardIndex];
+  if (!targetCard || targetCard.type !== 'batter') {
+    console.warn('⚠️ 選擇的手牌不是有效的打者卡');
+    return;
+  }
   
-  console.log('🎯 目標選擇:', targetCard.name);
+  console.log('🎯 手牌目標選擇:', targetCard.name);
   
   // 執行戰術卡效果
-  executeActionCard(pendingActionCard, state, targetCard, baseIndex);
+  executeActionCard(pendingActionCard, state, targetCard, -1);
   
-  // 移除卡牌
-  const cardIndex = state.player.hand.indexOf(pendingActionCard);
-  if (cardIndex !== -1) {
-    removeCardFromHand(state, cardIndex);
+  // 移除戰術卡
+  const actionCardIndex = state.player.hand.findIndex(card => card === pendingActionCard);
+  if (actionCardIndex !== -1) {
+    removeCardFromHand(state, actionCardIndex);
   }
   
   // 重置選擇狀態
   resetTargetSelection(state);
+  
+  // 重新渲染
+  if (handlers) {
+    render(state, handlers);
+  }
 }
 
-// 🆕 新增：重置目標選擇狀態
+// 🔧 修改：handleTargetSelection 函數 - 修復目標選擇後的卡牌移除
+function handleTargetSelection(baseIndex, state, handlers) {
+  if (!pendingActionCard) {
+    console.warn('⚠️ 沒有待處理的戰術卡');
+    return;
+  }
+  
+  const targetCard = state.bases[baseIndex];
+  if (!targetCard) {
+    console.warn('⚠️ 選擇的壘包沒有角色');
+    return;
+  }
+  
+  console.log('🎯 目標選擇:', targetCard.name, '在', baseIndex + 1, '壘');
+  
+  // 執行戰術卡效果
+  executeActionCard(pendingActionCard, state, targetCard, baseIndex);
+  
+  // 🔧 修復：找到並移除手牌中的戰術卡
+  const cardIndex = state.player.hand.findIndex(card => card === pendingActionCard);
+  if (cardIndex !== -1) {
+    console.log('🗑️ 移除已使用的戰術卡:', pendingActionCard.name);
+    removeCardFromHand(state, cardIndex);
+  } else {
+    console.warn('⚠️ 在手牌中找不到待處理的戰術卡');
+  }
+  
+  // 重置選擇狀態
+  resetTargetSelection(state);
+  
+  // 重新渲染UI
+  if (handlers && typeof handlers === 'object') {
+    render(state, handlers);
+  }
+}
+
+// 🔧 修改：resetTargetSelection 函數 - 同步更新全域狀態
 function resetTargetSelection(state) {
   awaitingTargetSelection = false;
   pendingActionCard = null;
   state.selected = -1;
   
-  // 移除高亮
-  document.querySelectorAll('.base').forEach(base => {
-    base.classList.remove('selectable-target');
+  // 🔧 修復：同步更新 window 物件
+  window.awaitingTargetSelection = false;
+  window.pendingActionCard = null;
+  
+  // 清除目標高亮
+  document.querySelectorAll('.base, .hand-card').forEach(element => {
+    element.classList.remove('selectable-target');
   });
+  
+  console.log('🔄 目標選擇狀態已重置');
 }
-
+// 🔧 修改：needsTargetSelection 函數 - 支援手牌目標選擇
 function needsTargetSelection(card) {
-  // 檢查卡牌是否需要選擇目標
-  const needsTarget = [
-    '一輩子',
-    '想成為人類',
-    '滿腦子想著自己'
+  const targetRequiredCards = [
+    '一輩子',        // 需要選擇壘上目標
+    '想成為人類',    // 需要選擇壘上目標
+    '滿腦子想著自己' // 需要選擇手牌目標
   ];
   
-  return needsTarget.includes(card.name);
+  return targetRequiredCards.includes(card.name);
 }
 
+// 🔧 修改：highlightValidTargets 函數 - 支援手牌目標高亮
 function highlightValidTargets(card, state) {
-  // 移除舊的高亮
-  document.querySelectorAll('.base').forEach(base => {
-    base.classList.remove('selectable-target');
+  // 清除舊的高亮
+  document.querySelectorAll('.base, .hand-card').forEach(element => {
+    element.classList.remove('selectable-target');
   });
   
-  // 根據卡牌類型高亮目標
-  if (card.name === '一輩子') {
-    // 可以選擇任何壘上的我方角色
+  if (card.name === '滿腦子想著自己') {
+    // 高亮手牌中的打者卡
+    state.player.hand.forEach((handCard, index) => {
+      if (handCard.type === 'batter') {
+        const cardElement = document.querySelector(`[data-card-index="${index}"]`);
+        if (cardElement) {
+          cardElement.classList.add('selectable-target');
+          console.log('💡 高亮手牌目標:', handCard.name);
+        }
+      }
+    });
+  } else if (card.name === '一輩子' || card.name === '想成為人類') {
+    // 高亮壘上的角色
     state.bases.forEach((baseCard, index) => {
       if (baseCard) {
-        const baseElement = document.getElementById(`base-${index}`);
+        const baseIds = ['first-base', 'second-base', 'third-base'];
+        const baseElement = document.getElementById(baseIds[index]);
         if (baseElement) {
           baseElement.classList.add('selectable-target');
+          console.log('💡 高亮壘包目標:', baseIds[index], baseCard.name);
         }
       }
     });
   }
 }
 
-function handleTargetSelection(baseIndex, state) {
-  if (!pendingActionCard) return;
-  
-  const targetCard = state.bases[baseIndex];
-  if (!targetCard) return;
-  
-  console.log('🎯 目標選擇:', targetCard.name);
-  
-  // 執行戰術卡效果
-  executeActionCard(pendingActionCard, state, targetCard, baseIndex);
-  
-  // 移除卡牌
-  const cardIndex = state.player.hand.indexOf(pendingActionCard);
-  if (cardIndex !== -1) {
-    state.player.hand.splice(cardIndex, 1);
-    state.player.discard.push(pendingActionCard);
-  }
-  
-  // 重置選擇狀態
-  awaitingTargetSelection = false;
-  pendingActionCard = null;
-  state.selected = -1;
-  
-  // 移除高亮
-  document.querySelectorAll('.base').forEach(base => {
-    base.classList.remove('selectable-target');
-  });
-  
-  render(state, arguments.callee.caller.arguments[0]);
-}
 
-// 🔧 修復：executeActionCard 函數 - 增強一輩子效果
+
+
+// 🔧 修改：executeActionCard 函數 - 支援「滿腦子想著自己」
 function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
   let description = "";
   
@@ -360,9 +438,30 @@ function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
       if (targetCard) {
         targetCard.locked = true;
         description = `${targetCard.name} 被鎖定在 ${targetIndex + 1} 壘上！一輩子...`;
-        console.log('🔒 角色被鎖定:', targetCard.name);
+        console.log('🔒 角色被鎖定:', targetCard.name, '在', targetIndex + 1, '壘');
       } else {
         description = `${card.name}: 需要選擇壘上的目標！`;
+      }
+      break;
+      
+    case '滿腦子想著自己':
+      if (targetCard) {
+        // 目標角色獲得巨大力量加成
+        targetCard.tempBonus = targetCard.tempBonus || {};
+        targetCard.tempBonus.power = (targetCard.tempBonus.power || 0) + 40;
+        
+        // 手牌中其他角色專注-20
+        state.player.hand.forEach(handCard => {
+          if (handCard.type === 'batter' && handCard !== targetCard) {
+            handCard.tempBonus = handCard.tempBonus || {};
+            handCard.tempBonus.contact = (handCard.tempBonus.contact || 0) - 20;
+          }
+        });
+        
+        description = `${targetCard.name} 成為獨奏者(力量+40)，其他角色專注-20`;
+        console.log('🎭 滿腦子想著自己:', targetCard.name, '力量+40');
+      } else {
+        description = `${card.name}: 需要選擇手牌中的角色！`;
       }
       break;
       
@@ -383,11 +482,35 @@ function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
       
     case '想成為人類':
       if (targetCard) {
+        // 清除負面效果並設置速度
+        if (targetCard.tempBonus) {
+          Object.keys(targetCard.tempBonus).forEach(stat => {
+            if (targetCard.tempBonus[stat] < 0) {
+              delete targetCard.tempBonus[stat];
+            }
+          });
+        }
         targetCard.tempBonus = targetCard.tempBonus || {};
         targetCard.tempBonus.speed = 99;
-        description = `${targetCard.name} 想成為人類！速度設為 99！`;
+        description = `${targetCard.name} 想成為人類！移除負面狀態，速度設為 99！`;
       } else {
         description = `${card.name}: 需要選擇目標！`;
+      }
+      break;
+      
+    case '小祥小祥小祥':
+      const sakiCard = state.player.deck.find(deckCard => 
+        deckCard.name && deckCard.name.includes('祥子')
+      );
+      
+      if (sakiCard) {
+        const sakiIndex = state.player.deck.indexOf(sakiCard);
+        state.player.deck.splice(sakiIndex, 1);
+        state.player.hand.push(sakiCard);
+        description = `${card.name}: 找到了祥子！加入手牌。`;
+      } else {
+        draw(state.player, 2);
+        description = `${card.name}: 祥子不在牌庫中，改為抽兩張卡。`;
       }
       break;
       
@@ -401,22 +524,26 @@ function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
   }
 }
 
-function runCpuTurn(state) {
+
+// 🔧 修改：runCpuTurn 函數 - 加速 CPU 回合
+function runCpuTurn(state, handlers) {
   try {
     console.log('🤖 CPU回合開始');
     
     let cpuOuts = 0;
     let cpuBatterIndex = 0;
+    const cpuResults = []; // 記錄所有結果
     
-    const turnInterval = setInterval(() => {
-      if (cpuOuts >= 3) {
-        clearInterval(turnInterval);
-        changeHalfInning(state);
-        return;
-      }
-      
+    // 🔧 修復：立即執行所有 CPU 打擊，不使用間隔
+    while (cpuOuts < 3 && cpuBatterIndex < 20) { // 限制最多 20 次打擊避免無限循環
       const batter = state.cpu.deck[cpuBatterIndex % state.cpu.deck.length];
       const result = simulateSimpleAtBat(batter, state.player.pitcher);
+      
+      cpuResults.push({
+        batter: batter.name,
+        result: result.description,
+        points: result.points || 0
+      });
       
       if (result.type === 'K' || result.type === 'OUT') {
         cpuOuts++;
@@ -424,21 +551,27 @@ function runCpuTurn(state) {
         state.score.away += result.points || 1;
       }
       
-      const outcomeText = document.getElementById('outcome-text');
-      if (outcomeText) {
-        outcomeText.textContent = `CPU: ${result.description}`;
-      }
-      
       cpuBatterIndex++;
-      
-      const simpleHandlers = {
-        select: () => {},
-        button: () => {},
-        baseClick: () => {},
-        dragToBatter: () => {}
-      };
-      render(state, simpleHandlers);
-    }, 1500);
+    }
+    
+    // 🔧 修復：一次性顯示結果摘要
+    const totalRuns = cpuResults.reduce((sum, r) => sum + r.points, 0);
+    const hits = cpuResults.filter(r => r.points > 0);
+    
+    const outcomeText = document.getElementById('outcome-text');
+    if (outcomeText) {
+      outcomeText.textContent = `CPU回合結束：${totalRuns}分，${hits.length}支安打，${cpuOuts}個出局`;
+    }
+    
+    // 🆕 新增：更新右側面板記錄
+    updateGameLog('cpu', cpuResults);
+    
+    console.log('✅ CPU回合完成：', { totalRuns, hits: hits.length, outs: cpuOuts });
+    
+    render(state, handlers);
+    
+    // 立即切換到下半局
+    setTimeout(() => changeHalfInning(state, handlers), 800);
     
   } catch (error) {
     console.error('❌ CPU回合失敗:', error);
@@ -446,7 +579,55 @@ function runCpuTurn(state) {
   }
 }
 
-function changeHalfInning(state) {
+// 🆕 新增：更新遊戲記錄面板
+function updateGameLog(team, results) {
+  let logContainer = document.getElementById('game-log-panel');
+  
+  if (!logContainer) {
+    // 創建記錄面板
+    logContainer = document.createElement('div');
+    logContainer.id = 'game-log-panel';
+    logContainer.className = 'game-log-panel';
+    logContainer.innerHTML = `
+      <div class="log-header">遊戲記錄</div>
+      <div class="log-content" id="log-content"></div>
+    `;
+    
+    // 添加到右側或適當位置
+    const rightPanel = document.querySelector('.game-container');
+    if (rightPanel) {
+      rightPanel.appendChild(logContainer);
+    }
+  }
+  
+  const logContent = document.getElementById('log-content');
+  if (!logContent) return;
+  
+  // 添加新記錄
+  const logEntry = document.createElement('div');
+  logEntry.className = `log-entry ${team}-log`;
+  
+  if (team === 'cpu') {
+    const hits = results.filter(r => r.points > 0);
+    const totalRuns = results.reduce((sum, r) => sum + r.points, 0);
+    
+    logEntry.innerHTML = `
+      <div class="log-title">客隊攻擊</div>
+      <div class="log-detail">${totalRuns}分 ${hits.length}安打</div>
+      ${hits.length > 0 ? `<div class="log-hits">${hits.map(h => h.batter).join(', ')} 安打</div>` : ''}
+    `;
+  }
+  
+  // 保持最新的 5 條記錄
+  logContent.insertBefore(logEntry, logContent.firstChild);
+  while (logContent.children.length > 5) {
+    logContent.removeChild(logContent.lastChild);
+  }
+}
+
+
+// 🔧 修改：changeHalfInning 函數 - 傳遞 handlers
+function changeHalfInning(state, handlers) {
   try {
     // 清除臨時加成
     state.bases.forEach(baseCard => {
@@ -490,17 +671,11 @@ function changeHalfInning(state) {
       }
       
       setTimeout(() => {
-        runCpuTurn(state);
+        runCpuTurn(state, handlers);
       }, 1000);
     }
     
-    const simpleHandlers = {
-      select: () => {},
-      button: () => {},
-      baseClick: () => {},
-      dragToBatter: () => {}
-    };
-    render(state, simpleHandlers);
+    render(state, handlers);
     
   } catch (error) {
     console.error('❌ 半局更換失敗:', error);
@@ -601,19 +776,41 @@ function calculatePitcherOVR(stats) {
   return Math.max(40, Math.min(99, ovr));
 }
 
+// 🔧 修改：draw 函數 - 確保正確抽牌
 function draw(player, numToDraw) {
+  console.log('🎴 開始抽牌:', numToDraw, '張');
+  console.log('📊 抽牌前 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
+  
   for (let i = 0; i < numToDraw; i++) {
+    // 如果牌庫空了，從棄牌堆重新洗牌
     if (player.deck.length === 0) {
-      if (player.discard.length === 0) return;
+      if (player.discard.length === 0) {
+        console.warn('⚠️ 牌庫和棄牌堆都是空的，無法抽牌');
+        break;
+      }
+      
+      console.log('🔄 牌庫空了，從棄牌堆重新洗牌');
       player.deck = [...player.discard];
       player.discard = [];
       shuffle(player.deck);
+      console.log('🔀 重新洗牌完成，牌庫數量:', player.deck.length);
     }
-    if (player.hand.length < 10 && player.deck.length > 0) {
-      player.hand.push(player.deck.pop());
+    
+    // 檢查手牌上限
+    if (player.hand.length >= 10) {
+      console.warn('⚠️ 手牌已達上限 (10張)，停止抽牌');
+      break;
+    }
+    
+    if (player.deck.length > 0) {
+      const drawnCard = player.deck.pop();
+      player.hand.push(drawnCard);
+      console.log('🎴 抽到:', drawnCard.name);
     }
   }
-}
+  
+  console.log('📊 抽牌後 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
+} 
 
 function shuffle(deck) {
   for (let i = deck.length - 1; i > 0; i--) {

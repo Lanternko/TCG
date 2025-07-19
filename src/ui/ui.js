@@ -1,5 +1,6 @@
 // src/ui/ui.js - 增強的UI系統
 
+// 🔧 修改：render 函數 - 添加記錄面板渲染
 export function render(state, handlers) {
   try {
     console.log('🎨 開始渲染UI...', {
@@ -21,6 +22,7 @@ export function render(state, handlers) {
     renderMainButton(state, handlers.button);
     renderActiveEffects(state.activeEffects);
     renderSpecialStates(state);
+    renderGameLog(state); // 🆕 新增：渲染記錄面板
     
     console.log('✅ UI渲染完成');
     
@@ -28,6 +30,7 @@ export function render(state, handlers) {
     console.error('❌ UI渲染失敗:', error);
   }
 }
+
 
 function renderScore(score) {
   const awayScore = document.getElementById('away-score');
@@ -53,35 +56,27 @@ function renderInning(inning, half) {
   inningDisplay.textContent = `${inning}${inningSuffix} ${halfText}`;
 }
 
-// 🔧 修復：renderBases 函數 - 正確的壘包順序和目標選擇
+// 🔧 修改：renderBases 函數 - 確保正確的壘包順序
 function renderBases(bases, baseClickHandler) {
-  // 🔧 修復：正確的壘包順序 3B-2B-1B
-  const baseConfig = [
-    { id: 'first-base', index: 0, label: '1B', order: 3 },   // 1B 顯示在最右邊
-    { id: 'second-base', index: 1, label: '2B', order: 2 },  // 2B 顯示在中間  
-    { id: 'third-base', index: 2, label: '3B', order: 1 }    // 3B 顯示在最左邊
-  ];
+  const baseNames = ['first-base', 'second-base', 'third-base'];
+  const baseLabels = ['1B', '2B', '3B'];
   
-  baseConfig.forEach(({ id, index, label, order }) => {
-    let baseElement = document.getElementById(id);
-    const card = bases[index];
-    
-    // 🆕 新增：確保壘包元素存在
+  bases.forEach((card, index) => {
+    const baseElement = document.getElementById(baseNames[index]);
     if (!baseElement) {
-      console.warn(`⚠️ 找不到壘包元素: ${id}`);
+      console.warn(`⚠️ 找不到壘包元素: ${baseNames[index]}`);
       return;
     }
     
-    // 設置壘包順序（CSS order 屬性）
-    baseElement.style.order = order;
-    baseElement.dataset.baseIndex = index;
+    // 🔧 修復：設置正確的壘包順序 (3B-2B-1B)
+    const displayOrder = [3, 2, 1]; // 1B=3, 2B=2, 3B=1
+    baseElement.style.order = displayOrder[index];
     
     // 更新壘包狀態
     baseElement.classList.toggle('occupied', !!card);
     baseElement.classList.toggle('locked', card && card.locked);
     
     if (card) {
-      // 🔧 修復：顯示詳細的球員資訊
       baseElement.innerHTML = `
         <div class="base-player-info">
           <div class="player-name">${card.name}</div>
@@ -90,9 +85,9 @@ function renderBases(bases, baseClickHandler) {
         </div>
       `;
       
-      // 🔧 修復：綁定點擊事件用於目標選擇
+      // 綁定點擊事件用於目標選擇
       baseElement.onclick = () => {
-        console.log('🎯 壘包點擊:', index, card.name);
+        console.log('🎯 壘包點擊:', baseNames[index], '索引:', index, '角色:', card.name);
         if (baseClickHandler) {
           baseClickHandler(index);
         }
@@ -102,16 +97,19 @@ function renderBases(bases, baseClickHandler) {
       if (card.effects && card.effects.aura) {
         baseElement.classList.add('has-aura');
         baseElement.title = `${card.name} - 光環: ${card.effects.aura.description}`;
+      } else {
+        baseElement.classList.remove('has-aura');
       }
       
     } else {
-      baseElement.innerHTML = label;
+      baseElement.innerHTML = baseLabels[index];
       baseElement.onclick = null;
       baseElement.title = '';
       baseElement.classList.remove('has-aura', 'selectable-target');
     }
   });
 }
+
 function renderBatterZone(state) {
   let batterZone = document.getElementById('batter-zone');
   if (!batterZone) {
@@ -170,10 +168,13 @@ function renderPitchers(cpuPitcher, playerPitcher) {
   }
 }
 
-// 🔧 修復：renderHand 函數 - 增強懸停效果和拖拽
+// 🔧 修改：renderHand 函數（已存在，需要更新）
 function renderHand(hand, selectedIndex, handlers) {
   const handContainer = document.getElementById('player-hand');
-  if (!handContainer) return;
+  if (!handContainer) {
+    console.warn('⚠️ 找不到手牌容器');
+    return;
+  }
   
   console.log('🎯 渲染手牌:', {
     handSize: hand.length,
@@ -184,10 +185,67 @@ function renderHand(hand, selectedIndex, handlers) {
   handContainer.innerHTML = '';
   
   hand.forEach((card, index) => {
-    const cardEl = createEnhancedCardElement(card, index, selectedIndex, handlers);
+    const cardEl = createCardElement(card, index, selectedIndex, handlers);
     handContainer.appendChild(cardEl);
   });
 }
+
+// 🆕 新增：createCardElement 函數（如果不存在）
+function createCardElement(card, index, selectedIndex, handlers) {
+  const cardEl = document.createElement('div');
+  cardEl.className = 'card hand-card';
+  cardEl.setAttribute('data-card-index', index);
+  cardEl.draggable = true;
+  
+  if (index === selectedIndex) {
+    cardEl.classList.add('selected');
+  }
+  
+  if (card.type === 'action') {
+    cardEl.classList.add('action-card');
+  } else if (card.type === 'batter') {
+    cardEl.classList.add('batter-card');
+  }
+  
+  // 計算動態數值（包含臨時加成）
+  const dynamicStats = calculateDynamicStats(card);
+  
+  let cardStats = '';
+  if (card.type === 'batter') {
+    const hasBonus = hasTempBonus(card);
+    const statsClass = hasBonus ? 'card-stats buffed' : 'card-stats';
+    
+    cardStats = `
+      <div class="${statsClass}">
+        POW: ${dynamicStats.power} HIT: ${dynamicStats.hitRate}<br>
+        CON: ${dynamicStats.contact} SPD: ${dynamicStats.speed}
+      </div>
+    `;
+  }
+  
+  const description = getCardDescription(card);
+  const instrument = card.instrument ? `<div class="card-instrument">🎵 ${card.instrument}</div>` : '';
+  const band = card.band ? `<div class="card-band">${card.band}</div>` : '';
+  const bonusIndicator = hasTempBonus(card) ? '<div class="bonus-indicator">✨</div>' : '';
+  
+  cardEl.innerHTML = `
+    <div class="card-name">${card.name}</div>
+    <div class="card-ovr">${card.ovr}</div>
+    ${cardStats}
+    ${instrument}
+    ${band}
+    <div class="card-description">${description}</div>
+    ${bonusIndicator}
+  `;
+  
+  // 設置事件處理
+  setupCardEvents(cardEl, card, index, handlers);
+  
+  return cardEl;
+}
+
+
+
 
 // 🆕 新增：創建增強的卡牌元素
 function createEnhancedCardElement(card, index, selectedIndex, handlers) {
@@ -244,19 +302,30 @@ function createEnhancedCardElement(card, index, selectedIndex, handlers) {
   return cardEl;
 }
 
-// 🆕 新增：設置卡牌事件處理
+// 🔧 修改：setupCardEvents 函數 - 支援手牌目標選擇
 function setupCardEvents(cardEl, card, index, handlers) {
   // 點擊選擇
   cardEl.addEventListener('click', (e) => {
     e.preventDefault();
     e.stopPropagation();
     console.log('🎯 卡牌點擊:', index, card.name);
-    if (handlers.select) {
+    
+    // 🔧 修復：如果在目標選擇模式且是滿腦子想著自己，處理手牌目標選擇
+    if (window.awaitingTargetSelection && window.pendingActionCard && 
+        window.pendingActionCard.name === '滿腦子想著自己' && card.type === 'batter') {
+      if (window.handleHandCardSelection) {
+        window.handleHandCardSelection(index, window.gameState, handlers);
+      }
+      return;
+    }
+    
+    // 正常選擇邏輯
+    if (handlers && handlers.select) {
       handlers.select(index);
     }
   });
   
-  // 🔧 修復：拖拽事件
+  // 拖拽事件
   cardEl.addEventListener('dragstart', (e) => {
     console.log('🎯 開始拖拽:', index, card.name);
     cardEl.classList.add('dragging');
@@ -268,7 +337,7 @@ function setupCardEvents(cardEl, card, index, handlers) {
     cardEl.classList.remove('dragging');
   });
   
-  // 🆕 新增：懸停工具提示
+  // 懸停工具提示
   cardEl.addEventListener('mouseenter', (e) => {
     showCardTooltip(card, e.pageX, e.pageY);
   });
@@ -278,7 +347,7 @@ function setupCardEvents(cardEl, card, index, handlers) {
   });
 }
 
-// 🆕 新增：卡牌工具提示系統
+// 🆕 新增：卡牌工具提示系統（如果不存在）
 let currentTooltip = null;
 
 function showCardTooltip(card, x, y) {
@@ -288,8 +357,8 @@ function showCardTooltip(card, x, y) {
   currentTooltip.className = 'card-tooltip';
   currentTooltip.style.cssText = `
     position: absolute;
-    left: ${x + 15}px;
-    top: ${y - 80}px;
+    left: ${Math.min(x + 15, window.innerWidth - 350)}px;
+    top: ${Math.max(y - 80, 10)}px;
     background: rgba(0,0,0,0.95);
     color: #fff;
     padding: 1rem 1.5rem;
@@ -304,32 +373,33 @@ function showCardTooltip(card, x, y) {
     pointer-events: none;
   `;
   
-  let tooltipContent = `<strong>${card.name}</strong><br>`;
+  let tooltipContent = `<strong style="color: #f1c40f;">${card.name}</strong><br>`;
   
   if (card.type === 'batter' && card.stats) {
     const stats = calculateDynamicStats(card);
-    tooltipContent += `<span style="color: #f1c40f;">POW: ${stats.power} | HIT: ${stats.hitRate}<br>`;
+    tooltipContent += `<span style="color: #3498db;">POW: ${stats.power} | HIT: ${stats.hitRate}<br>`;
     tooltipContent += `CON: ${stats.contact} | SPD: ${stats.speed}</span><br>`;
   }
   
   if (card.band) {
-    tooltipContent += `<em style="color: #3498db;">${card.band}</em><br>`;
+    tooltipContent += `<em style="color: #9b59b6;">${card.band}</em><br>`;
   }
   
   if (card.description) {
-    tooltipContent += `<br><span style="color: #bdc3c7;">${card.description}</span>`;
+    tooltipContent += `<br><span style="color: #bdc3c7; line-height: 1.4;">${card.description}</span>`;
   }
   
   currentTooltip.innerHTML = tooltipContent;
   document.body.appendChild(currentTooltip);
 }
+
 function hideCardTooltip() {
   if (currentTooltip && currentTooltip.parentNode) {
     currentTooltip.parentNode.removeChild(currentTooltip);
     currentTooltip = null;
   }
 }
-// 🔧 修復：calculateDynamicStats 函數
+// 🆕 新增：calculateDynamicStats 函數（如果不存在）
 function calculateDynamicStats(card) {
   if (!card.stats) return {};
   
@@ -357,6 +427,77 @@ function hasTempBonus(card) {
   return card.tempBonus && Object.keys(card.tempBonus).length > 0;
 }
 
+// 🆕 新增：renderGameLog 函數 - 渲染右側記錄面板
+function renderGameLog(state) {
+  let logPanel = document.getElementById('game-log-panel');
+  
+  if (!logPanel) {
+    // 創建記錄面板
+    logPanel = document.createElement('div');
+    logPanel.id = 'game-log-panel';
+    logPanel.className = 'game-log-panel';
+    
+    // 🔧 修復：替換「載入中」文字
+    const loadingText = document.querySelector('.loading, [class*="loading"]');
+    if (loadingText) {
+      loadingText.textContent = '';
+      loadingText.appendChild(logPanel);
+    } else {
+      // 如果找不到載入中區域，添加到遊戲容器
+      const gameContainer = document.querySelector('.game-container');
+      if (gameContainer) {
+        logPanel.style.cssText = `
+          position: absolute;
+          top: 100px;
+          right: 20px;
+          width: 300px;
+          max-height: 400px;
+          background: rgba(0,0,0,0.8);
+          border: 2px solid #4a5a6a;
+          border-radius: 10px;
+          padding: 1rem;
+          overflow-y: auto;
+          z-index: 30;
+        `;
+        gameContainer.appendChild(logPanel);
+      }
+    }
+  }
+  
+  // 更新面板內容
+  logPanel.innerHTML = `
+    <div class="log-header" style="color: #f1c40f; font-weight: bold; margin-bottom: 1rem; text-align: center;">
+      遊戲記錄
+    </div>
+    <div class="log-section">
+      <div class="log-title" style="color: #3498db; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        🏟️ 當前狀況
+      </div>
+      <div style="font-size: 0.8rem; color: #bdc3c7;">
+        ${state.currentInning}局${state.half === 'top' ? '上' : '下'} - ${state.outs}出局<br>
+        比分：${state.score.away} - ${state.score.home}
+      </div>
+    </div>
+    
+    <div class="log-section" style="margin-top: 1rem;">
+      <div class="log-title" style="color: #e67e22; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        ✨ 活躍效果
+      </div>
+      <div id="active-effects-log" style="font-size: 0.75rem; color: #95a5a6;">
+        ${getActiveEffectsText(state)}
+      </div>
+    </div>
+    
+    <div class="log-section" style="margin-top: 1rem;">
+      <div class="log-title" style="color: #9b59b6; font-size: 0.9rem; margin-bottom: 0.5rem;">
+        🎯 壘包狀況
+      </div>
+      <div style="font-size: 0.75rem; color: #95a5a6;">
+        ${getBasesStatusText(state)}
+      </div>
+    </div>
+  `;
+}
 
 function renderMainButton(state, buttonHandler) {
   const button = document.getElementById('main-button');
@@ -424,7 +565,7 @@ function renderActiveEffects(activeEffects) {
   }
 }
 
-// 🔧 修復：renderSpecialStates 函數 - 顯示特殊狀態
+// 🔧 修改：renderSpecialStates 函數（已存在，需要更新）
 function renderSpecialStates(state) {
   const container = document.getElementById('special-states');
   if (!container) return;
@@ -432,7 +573,7 @@ function renderSpecialStates(state) {
   container.innerHTML = '';
   
   // 檢查 MyGO 協同
-  if (state.player.team.id === 'MGO') {
+  if (state.player && state.player.team && state.player.team.id === 'MGO') {
     const mygoOnBase = state.bases.filter(card => 
       card && card.band === 'MyGO!!!!!'
     ).length;
@@ -460,8 +601,7 @@ function renderSpecialStates(state) {
   }
 }
 
-
-// 🆕 新增：創建特殊狀態元素
+// 🆕 新增：createSpecialStateElement 函數（如果不存在）
 function createSpecialStateElement(text, count, type) {
   const stateEl = document.createElement('div');
   stateEl.className = `special-state ${type}`;
@@ -469,9 +609,11 @@ function createSpecialStateElement(text, count, type) {
   return stateEl;
 }
 
+// 🔧 修改：getCardDescription 函數（如果已存在則修改，否則新增）
 function getCardDescription(card) {
   if (!card) return "";
   
+  // 優先顯示效果描述
   if (card.effects) {
     const effects = ['play', 'synergy', 'aura', 'death', 'passive'];
     for (const effectType of effects) {
@@ -481,15 +623,166 @@ function getCardDescription(card) {
     }
   }
   
+  // 戰術卡顯示稀有度
   if (card.type === 'action') {
     return card.rarity ? `${card.rarity} 戰術卡` : '戰術卡';
   }
   
+  // 樂器信息
   if (card.instrument) {
     return `${card.instrument} 演奏者`;
   }
   
-  return '';
+  return card.description || '';
+}
+
+// 🆕 新增：getActiveEffectsText 函數 - 獲取活躍效果文字
+function getActiveEffectsText(state) {
+  const effects = [];
+  
+  // 檢查壘上角色的光環效果
+  state.bases.forEach((card, index) => {
+    if (card) {
+      if (card.locked) {
+        effects.push(`🔒 ${card.name} 被鎖定`);
+      }
+      if (card.tempBonus) {
+        const bonuses = Object.entries(card.tempBonus)
+          .map(([stat, value]) => `${stat}${value > 0 ? '+' : ''}${value}`)
+          .join(', ');
+        effects.push(`✨ ${card.name}: ${bonuses}`);
+      }
+      if (card.effects && card.effects.aura) {
+        effects.push(`🌟 ${card.name}: 光環效果`);
+      }
+    }
+  });
+  
+  // 檢查樂隊協同
+  const mygoCount = state.bases.filter(card => card && card.band === 'MyGO!!!!!').length;
+  const mujicaCount = state.bases.filter(card => card && card.band === 'Mujica').length;
+  
+  if (mygoCount >= 3) {
+    effects.push(`🎵 MyGO協同 (${mygoCount}人)`);
+  }
+  if (mujicaCount >= 3) {
+    effects.push(`🖤 Mujica威壓 (${mujicaCount}人)`);
+  }
+  
+  return effects.length > 0 ? effects.join('<br>') : '無活躍效果';
+}
+
+// 🆕 新增：getBasesStatusText 函數 - 獲取壘包狀況文字
+function getBasesStatusText(state) {
+  const baseNames = ['一壘', '二壘', '三壘'];
+  const baseStatus = [];
+  
+  state.bases.forEach((card, index) => {
+    if (card) {
+      const lockStatus = card.locked ? ' (鎖定)' : '';
+      baseStatus.push(`${baseNames[index]}: ${card.name}${lockStatus}`);
+    }
+  });
+  
+  return baseStatus.length > 0 ? baseStatus.join('<br>') : '壘包空空如也';
+}
+
+// 🆕 新增：initializeUIEnhancements 函數 - 初始化 UI 增強功能
+export function initializeUIEnhancements() {
+  console.log('🎨 初始化UI增強...');
+  
+  // 移除載入中文字
+  const loadingElements = document.querySelectorAll('.loading, [class*="loading"]');
+  loadingElements.forEach(el => {
+    if (el.textContent.includes('載入中')) {
+      el.style.display = 'none';
+    }
+  });
+  
+  // 添加增強樣式
+  const style = document.createElement('style');
+  style.textContent = `
+    /* 記錄面板樣式 */
+    .game-log-panel {
+      background: rgba(0,0,0,0.9) !important;
+      border: 2px solid #4a5a6a !important;
+      border-radius: 10px !important;
+      padding: 1rem !important;
+      font-family: 'Inter', sans-serif !important;
+      backdrop-filter: blur(5px) !important;
+    }
+    
+    .log-header {
+      color: #f1c40f !important;
+      font-weight: bold !important;
+      margin-bottom: 1rem !important;
+      text-align: center !important;
+      font-size: 1.1rem !important;
+    }
+    
+    .log-section {
+      margin-bottom: 1rem !important;
+      padding: 0.5rem !important;
+      border-radius: 6px !important;
+      background: rgba(255,255,255,0.05) !important;
+    }
+    
+    .log-title {
+      font-weight: bold !important;
+      margin-bottom: 0.5rem !important;
+    }
+    
+    /* 手牌目標選擇樣式 */
+    .hand-card.selectable-target {
+      border-color: #e74c3c !important;
+      box-shadow: 0 0 20px rgba(231, 76, 60, 0.8) !important;
+      cursor: pointer !important;
+      animation: targetPulse 1s infinite !important;
+    }
+    
+    /* 確保壘包正確排列 */
+    .bases-container {
+      display: flex !important;
+      gap: 2rem !important;
+      align-items: center !important;
+      justify-content: center !important;
+      flex-direction: row !important;
+    }
+    
+    /* 壘包順序：3B-2B-1B */
+    #third-base { order: 1 !important; }
+    #second-base { order: 2 !important; }
+    #first-base { order: 3 !important; }
+    
+    /* 增強拖拽區域 */
+    .batter-zone {
+      min-height: 200px !important;
+      display: flex !important;
+      flex-direction: column !important;
+      align-items: center !important;
+      justify-content: center !important;
+      border: 3px dashed #95a5a6 !important;
+      border-radius: 15px !important;
+      background: rgba(149, 165, 166, 0.1) !important;
+      transition: all 0.3s ease !important;
+    }
+    
+    .batter-zone.drag-over {
+      border-color: #f1c40f !important;
+      background: rgba(241, 196, 15, 0.3) !important;
+      transform: scale(1.05) !important;
+      box-shadow: 0 0 20px rgba(241, 196, 15, 0.6) !important;
+    }
+  `;
+  document.head.appendChild(style);
+  
+  console.log('✅ UI增強初始化完成');
+}
+
+// 自動初始化
+if (typeof window !== 'undefined') {
+  // 確保在模組載入後初始化
+  setTimeout(initializeUIEnhancements, 100);
 }
 
 // 更新結果文字
