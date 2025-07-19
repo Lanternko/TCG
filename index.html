@@ -94,50 +94,24 @@
             text-align: right;
         }
 
-        /* 🔧 修改：主場地布局 - 擴大中央區域 */
+        /* 🔧 修改：場地布局調整 */
         .field { 
             flex-grow: 1; 
             display: grid;
-            grid-template-columns: 150px 1fr 150px; /* 縮小投手區域，擴大中央 */
+            grid-template-columns: 120px 1fr 120px; /* 進一步縮小投手區域 */
             grid-template-rows: 1fr;
-            gap: 0.5rem;
+            gap: 1rem;
             padding: 1rem; 
             position: relative;
             overflow: hidden;
         }
         
-        /* 🔧 修改：打擊區域 - 更大更明顯 */
+        /* 🔧 修改：移除舊的打擊區域，整個中央都是拖拽區 */
         .batter-zone {
-            width: 200px;
-            height: 250px;
-            border: 4px dashed #95a5a6;
-            border-radius: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: rgba(149, 165, 166, 0.15);
-            transition: all 0.3s ease;
-            margin: 1rem;
-            position: relative;
-            font-size: 1.1rem;
+            display: none; /* 隱藏舊的小打擊區 */
         }
         
-        .zone-label {
-            font-size: 1.2rem;
-            font-weight: bold;
-            color: #bdc3c7;
-            margin-bottom: 0.8rem;
-        }
-
-        .zone-instruction {
-            font-size: 0.9rem;
-            color: #95a5a6;
-            text-align: center;
-            line-height: 1.4;
-        }
-
-        /* 🔧 修改：投手區域 - 緊湊設計 */
+        /* 🔧 修改：投手區域進一步緊湊 */
         #cpu-pitcher-area, #player-pitcher-area {
             display: flex;
             flex-direction: column;
@@ -145,35 +119,48 @@
             justify-content: center;
             gap: 0.5rem;
             position: relative;
-            padding: 1rem;
+            padding: 0.5rem;
         }
 
-        /* 🔧 修改：中央場地 - 更大的遊戲區域 */
+        /* 🔧 修改：擴大中央場地為超大矩形 */
         .center-field {
             display: flex;
             flex-direction: column;
             align-items: center;
-            justify-content: space-evenly; /* 均勻分佈 */
-            gap: 1.5rem;
+            justify-content: space-evenly;
+            gap: 2rem;
             position: relative;
-            background: rgba(255, 255, 255, 0.02);
-            border-radius: 20px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
-            padding: 2rem;
-            min-height: 500px; /* 確保足夠高度 */
+            background: rgba(255, 255, 255, 0.03);
+            border-radius: 25px;
+            border: 3px solid rgba(255, 255, 255, 0.15);
+            padding: 3rem 2rem;
+            min-height: 600px; /* 增加高度 */
+            width: 100%; /* 佔滿可用寬度 */
+            box-shadow: inset 0 0 20px rgba(255, 255, 255, 0.05);
+            transition: all 0.3s ease;
         }
 
-        /* 🔧 修改：壘包容器 - 更大更清晰 */
+        /* 🆕 新增：中央場地拖拽狀態 */
+        .center-field.drag-over {
+            background: rgba(241, 196, 15, 0.15) !important;
+            border-color: #f1c40f !important;
+            box-shadow: inset 0 0 30px rgba(241, 196, 15, 0.3) !important;
+            transform: scale(1.02) !important;
+        }
+
+        /* 🔧 修改：壘包容器 - 更大間距 */
         .bases-container { 
             display: flex; 
-            gap: 3rem; /* 增加間距 */
+            gap: 4rem; /* 進一步增加間距 */
             align-items: center;
             justify-content: center;
             flex-direction: row;
-            padding: 1rem;
-            background: rgba(0, 0, 0, 0.2);
-            border-radius: 15px;
-            border: 2px solid rgba(255, 255, 255, 0.1);
+            padding: 2rem;
+            background: rgba(0, 0, 0, 0.25);
+            border-radius: 20px;
+            border: 2px solid rgba(255, 255, 255, 0.15);
+            width: 100%;
+            max-width: 800px; /* 限制最大寬度 */
         }
         
         /* 壘包順序確保正確 */
@@ -181,13 +168,13 @@
         #second-base { order: 2; } /* 2B 中間 */
         #first-base { order: 3; }  /* 1B 最右邊 */
 
-        /* 🔧 修改：壘包 - 更大更易點擊 */
+        /* 🔧 修改：超大壘包設計 */
         .base { 
-            width: 120px; 
-            height: 120px; 
-            background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)); 
-            border: 3px solid #7f8c8d; 
-            border-radius: 20px; 
+            width: 140px; 
+            height: 140px; 
+            background: linear-gradient(145deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.06)); 
+            border: 4px solid #7f8c8d; 
+            border-radius: 25px; 
             transition: all 0.3s ease; 
             font-family: 'Roboto Mono', monospace; 
             display: flex; 
@@ -195,9 +182,10 @@
             justify-content: center; 
             color: #7f8c8d; 
             font-weight: bold; 
-            font-size: 1.2rem;
+            font-size: 1.3rem;
             cursor: pointer;
             position: relative;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
         }
 
         .base.occupied { 
@@ -215,7 +203,6 @@
             animation: lockedPulse 2s infinite !important;
         }
         
-        /* 🆕 新增：目標選擇增強效果 */
         .base.selectable-target {
             border-color: #e74c3c !important;
             box-shadow: 0 0 30px rgba(231, 76, 60, 0.9) !important;
@@ -224,6 +211,7 @@
             transform: scale(1.1) !important;
             background: linear-gradient(145deg, rgba(231, 76, 60, 0.2), rgba(231, 76, 60, 0.1)) !important;
         }
+
         .hand-card.selectable-target {
             border-color: #e74c3c !important;
             box-shadow: 0 0 25px rgba(231, 76, 60, 0.8) !important;
@@ -242,36 +230,43 @@
             }
         }
 
-        /* 🆕 新增：增強的壘包球員資訊 */
+        /* 🔧 修改：增強壘包球員資訊顯示 */
         .base-player-info {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
-            font-size: 0.7rem;
-            line-height: 1.2;
+            font-size: 0.8rem;
+            line-height: 1.3;
             text-align: center;
-            padding: 0.2rem;
+            padding: 0.5rem;
         }
 
         .player-name {
             font-weight: bold;
             color: #2c3e50;
-            margin-bottom: 3px;
-            font-size: 0.75rem;
+            margin-bottom: 4px;
+            font-size: 0.85rem;
         }
 
         .player-band {
             color: #34495e;
-            font-size: 0.6rem;
-            margin-bottom: 2px;
+            font-size: 0.7rem;
+            margin-bottom: 3px;
+        }
+        
+        .player-ovr {
+            color: #f39c12;
+            font-size: 0.75rem;
+            font-weight: bold;
+            margin-bottom: 3px;
         }
 
         .locked-indicator {
             color: #fff;
-            font-size: 1rem;
-            margin-top: 3px;
+            font-size: 1.2rem;
+            margin-top: 4px;
             animation: glow 1.5s infinite;
         }
 
@@ -325,10 +320,10 @@
         }
 
         .card.pitcher-card { 
-            width: 100px;
-            height: 140px;
+            width: 90px;
+            height: 130px;
             border-color: #e74c3c;
-            font-size: 0.75rem;
+            font-size: 0.7rem;
         }
 
         /* 卡牌內容 */
@@ -376,7 +371,6 @@
             line-height: 1.2;
         }
 
-        /* 🆕 新增：拖拽增強效果 */
         .card.dragging {
             opacity: 0.8 !important;
             transform: rotate(8deg) scale(1.1) !important;
@@ -384,7 +378,6 @@
             box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
         }
 
-        /* 🆕 新增：臨時加成數值顯示 */
         .card-stats.buffed {
             color: #27ae60 !important;
             font-weight: bold !important;
@@ -423,12 +416,10 @@
             margin-bottom: 0.2rem;
         }
         
-        /* 活躍效果顯示 - 已由右側面板取代 */
         #active-effects-display { 
-            display: none; /* 隱藏，因為現在有右側面板 */
+            display: none;
         }
 
-        /* 特殊狀態 */
         .special-states { 
             position: absolute; 
             top: 10px; 
@@ -439,7 +430,6 @@
             z-index: 20;
         }
 
-        /* 🆕 新增：特殊狀態樣式增強 */
         .special-state {
             background: rgba(0,0,0,0.9) !important;
             padding: 8px 14px !important;
@@ -478,7 +468,6 @@
             50% { box-shadow: 0 0 20px rgba(155, 89, 182, 0.8); }
         }
 
-        /* 結果文字 */
         #outcome-text { 
             position: absolute; 
             bottom: 30px; 
@@ -498,7 +487,6 @@
             z-index: 25;
         }
 
-        /* 操作區域 */
         .action-area { 
             padding: 1.2rem; 
             display: flex; 
@@ -541,7 +529,6 @@
             box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
         }
 
-        /* 底部區域 */
         .bottom-area { 
             display: flex; 
             justify-content: space-between; 
@@ -554,7 +541,6 @@
             z-index: 10;
         }
 
-        /* 手牌區域 */
         .hand { 
             display: flex !important;
             justify-content: center !important;
@@ -568,261 +554,223 @@
             border-top: 2px solid #4a5a6a !important;
         }
 
-        .hand::-webkit-scrollbar {
-            height: 4px;
-        }
+        .hand::-webkit-scrollbar { height: 4px; }
+        .hand::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 2px; }
+        .hand .card { flex-shrink: 0 !important; min-width: 120px !important; transition: all 0.3s ease !important; }
+        .hand .card:hover { transform: translateY(-20px) scale(1.15) !important; border-color: #f1c40f !important; box-shadow: 0 15px 35px rgba(0,0,0,0.7) !important; z-index: 100 !important; }
+        .hand .card:hover .card-description { font-size: 0.8rem !important; -webkit-line-clamp: 6 !important; color: #ecf0f1 !important; line-height: 1.3 !important; }
+        .hand .card:hover .card-stats { font-size: 0.8rem !important; color: #f1c40f !important; }
+        .hand .card.selected { transform: translateY(-20px) scale(1.08); z-index: 20; }
 
-        .hand::-webkit-scrollbar-thumb {
-            background: rgba(255, 255, 255, 0.3);
-            border-radius: 2px;
-        }
+        .deck-area { text-align: center; min-width: 80px; display: flex; flex-direction: column; align-items: center; gap: 0.4rem; position: relative; z-index: 5; }
+        .deck-area p { margin: 0; font-size: 0.9rem; color: #bdc3c7; font-weight: 600; }
+        .deck-count { font-size: 1.5rem; font-weight: bold; color: #f1c40f; background: rgba(0,0,0,0.3); padding: 0.4rem 0.8rem; border-radius: 6px; border: 1px solid #4a5a6a; min-width: 40px; text-align: center; }
 
-        .hand .card { 
-            flex-shrink: 0 !important;
-            min-width: 120px !important;
-            transition: all 0.3s ease !important;
-        }
+        .team-indicator { font-size: 0.8rem; font-weight: 600; margin-bottom: 0.4rem; text-align: center; padding: 0.2rem 0.6rem; border-radius: 4px; background: rgba(0,0,0,0.3); }
+        .team-indicator.away { color: #e74c3c; border: 1px solid #e74c3c; }
+        .team-indicator.home { color: #3498db; border: 1px solid #3498db; }
         
-        /* 🆕 新增：增強的卡牌懸停效果 */
-        .hand .card:hover { 
-            transform: translateY(-20px) scale(1.15) !important; 
-            border-color: #f1c40f !important; 
-            box-shadow: 0 15px 35px rgba(0,0,0,0.7) !important;
-            z-index: 100 !important;
-        }
+        /* 視覺效果 */
+        .card-played-effect { animation: cardPlayedPulse 1s ease-out; }
+        @keyframes cardPlayedPulse { 0% { transform: scale(1); } 50% { transform: scale(1.1); box-shadow: 0 0 30px #f1c40f; } 100% { transform: scale(1); } }
+        .score-increase { animation: scoreIncrease 1s ease-out; }
+        @keyframes scoreIncrease { 0% { transform: scale(1); } 50% { transform: scale(1.2); color: #f1c40f; } 100% { transform: scale(1); } }
 
-        .hand .card:hover .card-description {
-            font-size: 0.8rem !important;
-            -webkit-line-clamp: 6 !important;
-            color: #ecf0f1 !important;
-            line-height: 1.3 !important;
-        }
+        .loading, .error-message { text-align: center; padding: 3rem; font-size: 1.5rem; background: rgba(0,0,0,0.3); border-radius: 10px; margin: 2rem; }
+        .loading { color: #f1c40f; }
+        .error-message { color: #e74c3c; border: 2px solid #e74c3c; }
 
-        .hand .card:hover .card-stats {
-            font-size: 0.8rem !important;
-            color: #f1c40f !important;
-        }
+        .secondary-button { padding: 0.8rem 1.5rem; font-size: 1rem; font-weight: 600; color: white; background: linear-gradient(145deg, #95a5a6, #7f8c8d); border: none; border-radius: 10px; cursor: pointer; transition: all 0.3s ease; }
+        .secondary-button:hover { background: linear-gradient(145deg, #7f8c8d, #95a5a6); transform: translateY(-2px); }
+        
+        .card-tooltip { position: absolute !important; background: rgba(0,0,0,0.95) !important; color: #fff !important; padding: 1rem 1.5rem !important; border-radius: 10px !important; border: 2px solid #4a5a6a !important; font-size: 0.9rem !important; max-width: 350px !important; word-wrap: break-word !important; z-index: 2000 !important; box-shadow: 0 8px 25px rgba(0,0,0,0.6) !important; backdrop-filter: blur(8px) !important; pointer-events: none !important; transition: opacity 0.2s ease !important; }
+        
+        /* 右側面板樣式 */
+        .game-log-panel { position: absolute !important; top: 120px !important; right: 20px !important; width: 280px !important; max-height: 450px !important; background: rgba(0,0,0,0.9) !important; border: 2px solid #4a5a6a !important; border-radius: 15px !important; padding: 1.2rem !important; overflow-y: auto !important; z-index: 30 !important; backdrop-filter: blur(8px) !important; box-shadow: 0 8px 25px rgba(0,0,0,0.6) !important; }
+        .log-header { color: #f1c40f !important; font-weight: bold !important; margin-bottom: 1rem !important; text-align: center !important; font-size: 1.1rem !important; border-bottom: 1px solid #4a5a6a !important; padding-bottom: 0.5rem !important; }
+        .log-section { margin-bottom: 1rem !important; padding: 0.8rem !important; border-radius: 8px !important; background: rgba(255,255,255,0.05) !important; border: 1px solid rgba(255,255,255,0.1) !important; }
+        .log-title { font-weight: bold !important; margin-bottom: 0.5rem !important; font-size: 0.9rem !important; }
 
-        .hand .card.selected {
-            transform: translateY(-20px) scale(1.08);
-            z-index: 20;
-        }
-
-        /* 牌組資訊 */
-        .deck-area { 
-            text-align: center; 
-            min-width: 80px; 
+        /* 🆕 新增：光環效果描述區域 */
+        .aura-description-area {
+            width: 100%;
+            max-width: 900px;
+            min-height: 120px;
+            background: rgba(0, 0, 0, 0.4);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 15px;
+            padding: 1.5rem;
+            margin: 1rem 0;
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 0.4rem;
-            position: relative;
-            z-index: 5;
+            justify-content: center;
         }
 
-        .deck-area p { 
-            margin: 0; 
-            font-size: 0.9rem; 
-            color: #bdc3c7; 
-            font-weight: 600;
-        }
-
-        .deck-count { 
-            font-size: 1.5rem; 
-            font-weight: bold; 
-            color: #f1c40f; 
-            background: rgba(0,0,0,0.3);
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
-            border: 1px solid #4a5a6a;
-            min-width: 40px;
+        .aura-title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #f39c12;
+            margin-bottom: 1rem;
             text-align: center;
         }
 
-        /* 隊伍指示器 */
-        .team-indicator { 
-            font-size: 0.8rem; 
-            font-weight: 600; 
-            margin-bottom: 0.4rem; 
-            text-align: center; 
-            padding: 0.2rem 0.6rem;
-            border-radius: 4px;
-            background: rgba(0,0,0,0.3);
-        }
-
-        .team-indicator.away { 
-            color: #e74c3c; 
-            border: 1px solid #e74c3c;
-        }
-
-        .team-indicator.home { 
-            color: #3498db; 
-            border: 1px solid #3498db;
-        }
-
-        /* 拖拽相關樣式 */
-        .batter-zone.drag-over {
-            border-color: #f1c40f !important;
-            background: rgba(241, 196, 15, 0.25) !important;
-            transform: scale(1.05) !important;
-            box-shadow: 0 0 25px rgba(241, 196, 15, 0.7) !important;
+        .aura-content {
+            font-size: 0.9rem;
+            color: #bdc3c7;
+            line-height: 1.5;
+            text-align: center;
+            max-width: 100%;
         }
         
-        /* 視覺效果 */
-        .card-played-effect {
-            animation: cardPlayedPulse 1s ease-out;
+        /* 🆕 新增：新的拖拽提示區域 */
+        .drop-hint {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.5rem;
+            color: rgba(189, 195, 199, 0.6);
+            text-align: center;
+            pointer-events: none;
+            z-index: 1;
         }
 
-        @keyframes cardPlayedPulse {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.1); box-shadow: 0 0 30px #f1c40f; }
-            100% { transform: scale(1); }
+        .drop-hint.active {
+            color: #f1c40f;
+            text-shadow: 0 0 10px rgba(241, 196, 15, 0.5);
+            animation: dropHintPulse 1s infinite;
         }
 
-        .score-increase {
-            animation: scoreIncrease 1s ease-out;
-        }
-
-        @keyframes scoreIncrease {
-            0% { transform: scale(1); }
-            50% { transform: scale(1.2); color: #f1c40f; }
-            100% { transform: scale(1); }
-        }
-
-        .loading, .error-message { 
-            text-align: center; 
-            padding: 3rem; 
-            font-size: 1.5rem; 
-            background: rgba(0,0,0,0.3);
-            border-radius: 10px;
-            margin: 2rem;
-        }
-        
-        .loading {
-            color: #f1c40f; 
-        }
-
-        .error-message { 
-            color: #e74c3c; 
-            border: 2px solid #e74c3c; 
-        }
-
-        .secondary-button { 
-            padding: 0.8rem 1.5rem; 
-            font-size: 1rem; 
-            font-weight: 600; 
-            color: white; 
-            background: linear-gradient(145deg, #95a5a6, #7f8c8d); 
-            border: none; 
-            border-radius: 10px; 
-            cursor: pointer; 
-            transition: all 0.3s ease; 
-        }
-
-        .secondary-button:hover { 
-            background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
-            transform: translateY(-2px);
-        }
-        
-        /* 🆕 新增：工具提示樣式 */
-        .card-tooltip {
-            position: absolute !important;
-            background: rgba(0,0,0,0.95) !important;
-            color: #fff !important;
-            padding: 1rem 1.5rem !important;
-            border-radius: 10px !important;
-            border: 2px solid #4a5a6a !important;
-            font-size: 0.9rem !important;
-            max-width: 350px !important;
-            word-wrap: break-word !important;
-            z-index: 2000 !important;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.6) !important;
-            backdrop-filter: blur(8px) !important;
-            pointer-events: none !important;
-            transition: opacity 0.2s ease !important;
-        }
-        
-        /* 🆕 新增：右側面板樣式 */
-        .game-log-panel {
-            position: absolute !important;
-            top: 120px !important;
-            right: 20px !important;
-            width: 280px !important;
-            max-height: 450px !important;
-            background: rgba(0,0,0,0.9) !important;
-            border: 2px solid #4a5a6a !important;
-            border-radius: 15px !important;
-            padding: 1.2rem !important;
-            overflow-y: auto !important;
-            z-index: 30 !important;
-            backdrop-filter: blur(8px) !important;
-            box-shadow: 0 8px 25px rgba(0,0,0,0.6) !important;
-        }
-
-        .log-header {
-            color: #f1c40f !important;
-            font-weight: bold !important;
-            margin-bottom: 1rem !important;
-            text-align: center !important;
-            font-size: 1.1rem !important;
-            border-bottom: 1px solid #4a5a6a !important;
-            padding-bottom: 0.5rem !important;
-        }
-
-        .log-section {
-            margin-bottom: 1rem !important;
-            padding: 0.8rem !important;
-            border-radius: 8px !important;
-            background: rgba(255,255,255,0.05) !important;
-            border: 1px solid rgba(255,255,255,0.1) !important;
-        }
-
-        .log-title {
-            font-weight: bold !important;
-            margin-bottom: 0.5rem !important;
-            font-size: 0.9rem !important;
+        @keyframes dropHintPulse {
+            0%, 100% { 
+                transform: translate(-50%, -50%) scale(1); 
+                opacity: 0.6;
+            }
+            50% { 
+                transform: translate(-50%, -50%) scale(1.1); 
+                opacity: 1;
+            }
         }
 
         /* 響應式設計 */
         @media (max-width: 1400px) {
             .field {
-                grid-template-columns: 130px 1fr 130px;
+                grid-template-columns: 100px 1fr 100px;
             }
             .bases-container {
-                gap: 2rem;
+                gap: 3rem;
             }
             .base {
-                width: 100px;
-                height: 100px;
-                font-size: 1rem;
+                width: 120px;
+                height: 120px;
+                font-size: 1.1rem;
             }
-            .batter-zone {
-                width: 180px;
-                height: 220px;
+            .aura-description-area {
+                min-height: 100px;
+                padding: 1.2rem;
             }
         }
 
         @media (max-width: 768px) {
-            .field {
-                grid-template-columns: 1fr;
-                grid-template-rows: auto 1fr auto;
-            }
+            .field { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; }
             #cpu-pitcher-area { grid-row: 1; }
             .center-field { grid-row: 2; }
             #player-pitcher-area { grid-row: 3; }
-            .hand {
-                gap: 0.5rem;
-                max-width: 85%;
-            }
-            .card {
-                width: 95px;
-                height: 135px;
-            }
-            .hand .card {
-                min-width: 95px;
-            }
+            .hand { gap: 0.5rem; max-width: 85%; }
+            .card { width: 95px; height: 135px; }
+            .hand .card { min-width: 95px; }
         }
-    </style>
+    
+
+/* === 合併新增樣式 === */
+
+/* 動態 OVR 樣式 */
+.card-ovr.dynamic {
+    color: #27ae60 !important;
+    background-color: rgba(39, 174, 96, 0.2) !important;
+    border-color: #27ae60 !important;
+    animation: dynamicGlow 2s infinite !important;
+}
+
+@keyframes dynamicGlow {
+    0%, 100% { box-shadow: 0 0 5px rgba(39, 174, 96, 0.5); }
+    50% { box-shadow: 0 0 15px rgba(39, 174, 96, 0.8); }
+}
+
+/* 光環效果樣式 */
+.aura-effect {
+    margin-bottom: 0.5rem;
+    padding: 0.3rem 0.6rem;
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.05);
+    border-left: 3px solid #f39c12;
+}
+
+.aura-effect.global {
+    border-left-color: #3498db;
+    background: rgba(52, 152, 219, 0.1);
+}
+
+.aura-effect.locked {
+    border-left-color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+}
+
+/* 歷史記錄樣式 */
+.history-entry {
+    margin-bottom: 0.3rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+    border-left: 2px solid #95a5a6;
+}
+
+.history-entry.playerTurn {
+    border-left-color: #3498db;
+    background: rgba(52, 152, 219, 0.1);
+}
+
+.history-entry.cpuInning {
+    border-left-color: #e74c3c;
+    background: rgba(231, 76, 60, 0.1);
+}
+
+.history-entry.actionCard {
+    border-left-color: #9b59b6;
+    background: rgba(155, 89, 182, 0.1);
+}
+
+.history-entry.endInning {
+    border-left-color: #f39c12;
+    background: rgba(243, 156, 18, 0.1);
+}
+
+/* 拖拽提示增強 */
+.drop-hint {
+    font-size: 1.8rem;
+    font-weight: bold;
+    color: rgba(189, 195, 199, 0.4);
+    text-align: center;
+    pointer-events: none;
+    z-index: 1;
+    transition: all 0.3s ease;
+}
+
+.drop-hint.active {
+    color: #f1c40f !important;
+    text-shadow: 0 0 15px rgba(241, 196, 15, 0.7) !important;
+    transform: scale(1.1) !important;
+    animation: dropHintPulse 1s infinite !important;
+}
+
+/* 中央場地拖拽狀態增強 */
+.center-field.drag-over {
+    background: linear-gradient(135deg, rgba(241, 196, 15, 0.15), rgba(241, 196, 15, 0.05)) !important;
+    border-color: #f1c40f !important;
+    box-shadow: inset 0 0 40px rgba(241, 196, 15, 0.3), 0 0 20px rgba(241, 196, 15, 0.5) !important;
+    transform: scale(1.01) !important;
+}
+</style>
 </head>
 <body>
     <div class="game-container">
@@ -845,11 +793,22 @@
             <div id="cpu-pitcher-area"></div>
             <div class="center-field">
                 <div id="batter-zone"></div>
+                
+                <div id="aura-description-area" class="aura-description-area">
+                    <div class="aura-title">場地光環效果</div>
+                    <div class="aura-content" id="aura-content-text">當前沒有啟動中的光環效果。</div>
+                </div>
+
                 <div class="bases-container">
                     <div id="third-base" class="base">3B</div>
                     <div id="second-base" class="base">2B</div>
                     <div id="first-base" class="base">1B</div>
                 </div>
+
+                <div id="drop-hint" class="drop-hint">
+                    <span>拖曳卡牌至此處進行打擊</span>
+                </div>
+
                 <div id="active-effects-display"></div>
             </div>
             <div id="player-pitcher-area"></div>
@@ -860,10 +819,10 @@
                 <div class="log-header">遊戲紀錄</div>
                 <div id="log-active-effects" class="log-section">
                     <div class="log-title">持續效果</div>
-                    </div>
+                </div>
                 <div id="log-play-history" class="log-section">
                     <div class="log-title">操作歷史</div>
-                    </div>
+                </div>
             </div>
         </div>
         
