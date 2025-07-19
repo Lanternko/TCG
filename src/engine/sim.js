@@ -333,3 +333,55 @@ export function playsInstrument(character, instrument) {
   return character.instrument === instrument || 
          (character.instrument && character.instrument.includes(instrument));
 }
+
+// A simple outcome processor
+export function processSimpleOutcome(result, state, batterCard) {
+  if (result.type === 'K' || result.type === 'OUT') {
+    state.outs++;
+  } else {
+    // This is a very simplified scoring and base running logic.
+    // A more complex system would be needed for a full game.
+    state.score.home += result.points || 0;
+    
+    // Clear bases and place the new batter
+    // This doesn't account for advancing other runners properly yet.
+    const runners = state.bases.filter(Boolean);
+    runners.unshift(batterCard); // Add batter to the front
+    state.bases = [null, null, null];
+
+    let runsScored = 0;
+    runners.forEach(runner => {
+        // A placeholder for base advancement logic
+        const advance = result.points || 1;
+        // This is not a correct base running simulation, but a placeholder
+        if (advance === 4) {
+            runsScored++;
+        } else if (state.bases[advance - 1] === null) {
+            state.bases[advance - 1] = runner;
+        } else {
+            // If base is occupied, just score for simplicity in this version
+            runsScored++;
+        }
+    });
+    state.score.home += runsScored;
+  }
+}
+
+// A simplified simulation function based on the patch for testing UI and effects
+export function simulateSimpleAtBat(batter, pitcher) {
+  const random = Math.random();
+  
+  if (random < 0.2) {
+    return { type: 'K', description: `${batter.name} 三振出局`, points: 0 };
+  } else if (random < 0.3) {
+    return { type: 'OUT', description: `${batter.name} 出局`, points: 0 };
+  } else if (random < 0.4) {
+    return { type: 'BB', description: `${batter.name} 保送`, points: 1 };
+  } else if (random < 0.5) {
+    return { type: 'HR', description: `${batter.name} 全壘打！`, points: 4 };
+  } else if (random < 0.7) {
+    return { type: '2B', description: `${batter.name} 二壘安打`, points: 2 };
+  } else {
+    return { type: '1B', description: `${batter.name} 一壘安打`, points: 1 };
+  }
+}

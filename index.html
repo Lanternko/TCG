@@ -9,7 +9,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;700&family=Roboto+Mono:wght@400;700&display=swap" rel="stylesheet">
     
     <style>
-        /* 保持原有的CSS樣式，並添加新的元素樣式 */
+        /* 基本設定 */
         body { 
             font-family: 'Inter', sans-serif; 
             background: #1a2a3a; 
@@ -36,6 +36,7 @@
             overflow: hidden;
         }
 
+        /* 頂部狀態欄 */
         .top-bar { 
             padding: 1rem; 
             display: flex; 
@@ -59,6 +60,41 @@
             text-shadow: 0 2px 4px rgba(0,0,0,0.5);
         }
 
+        .game-state-display { 
+            display: flex; 
+            flex-direction: column; 
+            align-items: flex-end; 
+            gap: 0.8rem; 
+        }
+
+        .outs-display { 
+            display: flex; 
+            gap: 0.8rem; 
+        }
+
+        .out-light { 
+            width: 20px; 
+            height: 20px; 
+            border-radius: 50%; 
+            background-color: #3a4a5a; 
+            border: 2px solid #5a6a7a; 
+            transition: all 0.3s ease; 
+        }
+
+        .out-light.active { 
+            background-color: #e74c3c; 
+            border-color: #c0392b;
+            box-shadow: 0 0 12px #e74c3c; 
+        }
+
+        .inning-display { 
+            font-size: 1.4rem; 
+            font-weight: 600; 
+            color: #bdc3c7; 
+            text-align: right;
+        }
+
+        /* 主要遊戲區域 */
         .field { 
             flex-grow: 1; 
             display: grid;
@@ -70,27 +106,67 @@
             overflow: hidden;
             z-index: 1;
         }
+        
+        #batter-zone {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 200px;
+            height: 50px;
+            border: 2px dashed #5a6a7a;
+            border-radius: 10px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            color: #7f8c8d;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            z-index: 3;
+        }
+        
+        .zone-label { font-size: 1rem; }
+        .zone-instruction { font-size: 0.7rem; }
+
+
+        /* 投手區域 */
+        #cpu-pitcher-area, #player-pitcher-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            position: relative;
+            z-index: 2;
+        }
 
         .center-field {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            gap: 1rem;
+            gap: 1.5rem;
             position: relative;
             z-index: 2;
         }
 
+        /* 壘包區域 */
         .bases-container { 
             display: flex; 
             gap: 1.5rem; 
             align-items: center;
             justify-content: center;
+            flex-direction: row;
         }
+        
+        #base-2 { order: 1; } /* 3B */
+        #base-1 { order: 2; } /* 2B */  
+        #base-0 { order: 3; } /* 1B */
 
         .base { 
-            width: 80px; 
-            height: 80px; 
+            width: 50px; 
+            height: 50px; 
             background: linear-gradient(145deg, rgba(255, 255, 255, 0.1), rgba(255, 255, 255, 0.05)); 
             border: 2px solid #7f8c8d; 
             border-radius: 10px; 
@@ -102,7 +178,7 @@
             color: #7f8c8d; 
             font-weight: bold; 
             font-size: 0.8rem;
-            cursor: pointer;
+            cursor: default;
         }
 
         .base.occupied { 
@@ -117,89 +193,65 @@
             border-color: #a93226; 
             box-shadow: 0 0 15px rgba(231, 76, 60, 0.5); 
             color: #fff; 
-            animation: pulse 2s infinite;
+            animation: lockedPulse 2s infinite;
         }
-
-        .base.has-aura {
-            border-color: #f39c12 !important;
-            box-shadow: 0 0 20px rgba(243, 156, 18, 0.7) !important;
-        }
-
+        
         .base.selectable-target {
             border-color: #e74c3c !important;
-            box-shadow: 0 0 20px rgba(231, 76, 60, 0.7) !important;
-            cursor: pointer;
-            animation: targetPulse 1s infinite;
+            box-shadow: 0 0 30px rgba(231, 76, 60, 0.9) !important;
+            cursor: pointer !important;
+            animation: targetPulse 1s infinite !important;
+            transform: scale(1.05) !important;
         }
 
         @keyframes targetPulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.1); }
+            0%, 100% { transform: scale(1.05); }
+            50% { transform: scale(1.15); }
         }
 
-        .batter-zone {
-            width: 120px;
-            height: 170px;
-            border: 3px dashed #95a5a6;
-            border-radius: 10px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            background: rgba(149, 165, 166, 0.1);
-            transition: all 0.3s ease;
-            margin: 1rem;
-        }
-
-        .batter-zone.drag-over {
-            border-color: #f1c40f;
-            background: rgba(241, 196, 15, 0.2);
-            transform: scale(1.05);
-        }
-
-        .zone-label {
-            font-size: 0.8rem;
-            font-weight: bold;
-            color: #7f8c8d;
-            margin-bottom: 0.5rem;
-        }
-
-        .zone-instruction {
-            font-size: 0.6rem;
-            color: #95a5a6;
-            text-align: center;
-            line-height: 1.2;
-        }
-
-        /* 壘包球員資訊 */
         .base-player-info {
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             height: 100%;
-            font-size: 0.6rem;
-            line-height: 1.1;
+            font-size: 0.7rem;
+            line-height: 1.2;
+            text-align: center;
+            padding: 0.2rem;
         }
 
         .player-name {
             font-weight: bold;
             color: #2c3e50;
-            margin-bottom: 2px;
+            margin-bottom: 3px;
+            font-size: 0.75rem;
         }
 
         .player-band {
             color: #34495e;
-            font-size: 0.5rem;
+            font-size: 0.6rem;
+            margin-bottom: 2px;
         }
 
         .locked-indicator {
             color: #fff;
-            font-size: 0.8rem;
-            margin-top: 2px;
+            font-size: 1rem;
+            margin-top: 3px;
+            animation: glow 1.5s infinite;
         }
 
-        /* 繼續添加其他必要的CSS... */
+        @keyframes glow {
+            0%, 100% { text-shadow: 0 0 5px #fff; }
+            50% { text-shadow: 0 0 10px #fff, 0 0 15px #fff; }
+        }
+        
+        @keyframes lockedPulse {
+            0%, 100% { background: linear-gradient(145deg, #e74c3c, #c0392b); transform: scale(1); }
+            50% { background: linear-gradient(145deg, #c0392b, #e74c3c); transform: scale(1.03); }
+        }
+
+        /* 卡牌基本樣式 */
         .card { 
             width: 120px; 
             height: 170px; 
@@ -215,12 +267,6 @@
             box-shadow: 0 4px 8px rgba(0,0,0,0.3); 
             cursor: pointer;
             user-select: none;
-        }
-
-        .card:hover { 
-            transform: translateY(-3px) scale(1.02); 
-            border-color: #f1c40f; 
-            box-shadow: 0 6px 15px rgba(0,0,0,0.5);
         }
 
         .card.selected { 
@@ -244,133 +290,7 @@
             border-color: #e74c3c;
         }
 
-        .card.dragging {
-            opacity: 0.7;
-            transform: rotate(5deg);
-            z-index: 1000;
-        }
-
-        .bonus-indicator {
-            position: absolute;
-            top: 5px;
-            left: 5px;
-            font-size: 0.8rem;
-            color: #f1c40f;
-            animation: sparkle 2s infinite;
-        }
-
-        @keyframes sparkle {
-            0%, 100% { opacity: 1; transform: scale(1); }
-            50% { opacity: 0.7; transform: scale(1.2); }
-        }
-
-        /* 其他必要的樣式... */
-        .hand { 
-            display: flex !important; 
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            justify-content: center; 
-            align-items: center; 
-            gap: 0.8rem; 
-            min-height: 180px; 
-            overflow-x: auto;
-            overflow-y: hidden;
-            max-width: 70%;
-            padding: 0 0.5rem;
-            position: relative;
-            z-index: 5;
-        }
-
-        .hand .card { 
-            flex-shrink: 0;
-            min-width: 120px;
-            transition: all 0.3s ease;
-        }
-
-        .hand .card:hover { 
-            transform: translateY(-15px) scale(1.05); 
-            border-color: #f1c40f; 
-            z-index: 15;
-        }
-
-        .action-area { 
-            padding: 1.2rem; 
-            display: flex; 
-            justify-content: center; 
-            align-items: center; 
-            gap: 1rem; 
-            background: rgba(0,0,0,0.2);
-            border-top: 1px solid #4a5a6a;
-            position: relative;
-            z-index: 50;
-        }
-
-        .main-button { 
-            padding: 1rem 3rem; 
-            font-size: 1.4rem; 
-            font-weight: 700; 
-            color: white; 
-            background: linear-gradient(145deg, #3498db, #2980b9); 
-            border: none; 
-            border-radius: 15px; 
-            cursor: pointer; 
-            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); 
-            transition: all 0.3s ease; 
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            position: relative;
-            z-index: 100;
-        }
-
-        .main-button:hover:not(:disabled) { 
-            background: linear-gradient(145deg, #2980b9, #3498db); 
-            transform: translateY(-2px); 
-            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.4);
-        }
-
-        .main-button:disabled { 
-            background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
-            cursor: not-allowed; 
-            transform: none; 
-            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-        }
-
-        .bottom-area { 
-            display: flex; 
-            justify-content: space-between; 
-            align-items: flex-end; 
-            padding: 1.5rem; 
-            background: rgba(0, 0, 0, 0.3); 
-            border-top: 2px solid #4a5a6a; 
-            min-height: 210px;
-            position: relative;
-            z-index: 10;
-        }
-
-        .deck-area { 
-            text-align: center; 
-            min-width: 80px; 
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 0.4rem;
-            position: relative;
-            z-index: 5;
-        }
-
-        .deck-count { 
-            font-size: 1.5rem; 
-            font-weight: bold; 
-            color: #f1c40f; 
-            background: rgba(0,0,0,0.3);
-            padding: 0.4rem 0.8rem;
-            border-radius: 6px;
-            border: 1px solid #4a5a6a;
-            min-width: 40px;
-            text-align: center;
-        }
-
-        /* 其他必要的樣式 */
+        /* 卡牌內容 */
         .card-name { 
             font-weight: 700; 
             font-size: 0.85rem; 
@@ -390,6 +310,13 @@
             border-radius: 4px; 
             color: #ffd700; 
             border: 1px solid #ffd700;
+        }
+        
+        .bonus-indicator {
+            position: absolute;
+            bottom: 5px;
+            right: 5px;
+            font-size: 1rem;
         }
 
         .card-stats { 
@@ -431,7 +358,239 @@
             font-weight: bold; 
             margin-bottom: 0.2rem;
         }
+        
+        /* 活躍效果顯示 */
+        #active-effects-display { 
+            width: 85%; 
+            max-width: 500px;
+            text-align: center; 
+            color: #f1c40f; 
+            min-height: 40px; 
+            background: rgba(0,0,0,0.4); 
+            border-radius: 8px; 
+            padding: 0.8rem; 
+            display: flex; 
+            flex-direction: column;
+            justify-content: center; 
+            gap: 0.5rem; 
+            align-items: center; 
+            border: 1px solid #4a5a6a;
+        }
 
+        #active-effects-display .effect { 
+            background: linear-gradient(145deg, rgba(0,0,0,0.6), rgba(0,0,0,0.4)); 
+            padding: 3px 8px; 
+            border-radius: 5px; 
+            border: 1px solid #f1c40f; 
+            font-size: 0.7rem;
+            white-space: nowrap;
+        }
+
+        /* 特殊狀態 */
+        .special-states { 
+            position: absolute; 
+            top: 10px; 
+            left: 10px; 
+            display: flex; 
+            flex-direction: column; 
+            gap: 6px; 
+            z-index: 20;
+        }
+
+        .special-state { 
+            background: rgba(0,0,0,0.9) !important;
+            padding: 8px 14px !important;
+            border-radius: 10px !important;
+            font-size: 0.85rem !important;
+            font-weight: bold !important;
+            border: 2px solid !important;
+            backdrop-filter: blur(5px) !important;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5) !important;
+        }
+
+        .special-state.mygo-synergy { 
+            color: #3498db !important;
+            border-color: #3498db !important;
+            animation: mygoGlow 2s infinite !important;
+        }
+
+        .special-state.mujica-synergy { 
+            color: #9b59b6 !important;
+            border-color: #9b59b6 !important;
+            animation: mujicaGlow 2s infinite !important;
+        }
+        
+        @keyframes mygoGlow {
+            0%, 100% { box-shadow: 0 0 10px rgba(52, 152, 219, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(52, 152, 219, 0.8); }
+        }
+
+        @keyframes mujicaGlow {
+            0%, 100% { box-shadow: 0 0 10px rgba(155, 89, 182, 0.5); }
+            50% { box-shadow: 0 0 20px rgba(155, 89, 182, 0.8); }
+        }
+
+        /* 結果文字 */
+        #outcome-text { 
+            position: absolute; 
+            bottom: 15px; 
+            left: 50%; 
+            transform: translateX(-50%); 
+            font-size: 1.1rem; 
+            font-weight: 600; 
+            color: #f39c12; 
+            text-align: center; 
+            background: rgba(0,0,0,0.8); 
+            padding: 0.8rem 1.5rem; 
+            border-radius: 8px; 
+            max-width: 75%; 
+            word-wrap: break-word; 
+            border: 1px solid #4a5a6a;
+            backdrop-filter: blur(2px);
+            z-index: 10;
+        }
+
+        /* 操作區域 */
+        .action-area { 
+            padding: 1.2rem; 
+            display: flex; 
+            justify-content: center; 
+            align-items: center; 
+            gap: 1rem; 
+            background: rgba(0,0,0,0.2);
+            border-top: 1px solid #4a5a6a;
+            position: relative;
+            z-index: 50;
+        }
+
+        .main-button { 
+            padding: 1rem 3rem; 
+            font-size: 1.4rem; 
+            font-weight: 700; 
+            color: white; 
+            background: linear-gradient(145deg, #3498db, #2980b9); 
+            border: none; 
+            border-radius: 15px; 
+            cursor: pointer; 
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3); 
+            transition: all 0.3s ease; 
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            position: relative;
+            z-index: 100;
+        }
+
+        .main-button:hover:not(:disabled) { 
+            background: linear-gradient(145deg, #2980b9, #3498db) !important;
+            transform: translateY(-3px) !important;
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4) !important;
+        }
+
+        .main-button:disabled { 
+            background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
+            cursor: not-allowed; 
+            transform: none; 
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+        }
+
+        /* 底部區域 */
+        .bottom-area { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: flex-end; 
+            padding: 1.5rem; 
+            background: rgba(0, 0, 0, 0.3); 
+            border-top: 2px solid #4a5a6a; 
+            min-height: 210px;
+            position: relative;
+            z-index: 10;
+        }
+
+        /* 手牌區域 */
+        .hand { 
+            display: flex !important;
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            justify-content: center !important;
+            align-items: center !important;
+            gap: 1rem !important;
+            min-height: 220px !important;
+            overflow-x: auto !important;
+            overflow-y: visible !important;
+            padding: 1.5rem 1rem !important;
+        }
+
+        .hand::-webkit-scrollbar {
+            height: 4px;
+        }
+
+        .hand::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 2px;
+        }
+
+        .hand .card { 
+            flex-shrink: 0 !important;
+            min-width: 120px !important;
+            transition: all 0.3s ease !important;
+        }
+
+        .hand .card:hover { 
+            transform: translateY(-25px) scale(1.2) !important;
+            border-color: #f1c40f !important;
+            box-shadow: 0 15px 40px rgba(0,0,0,0.7) !important;
+            z-index: 150 !important;
+        }
+        
+        .hand .card:hover .card-description {
+            font-size: 0.8rem !important;
+            -webkit-line-clamp: 6 !important;
+            color: #ecf0f1 !important;
+            line-height: 1.3 !important;
+        }
+
+        .hand .card:hover .card-stats {
+            font-size: 0.8rem !important;
+            color: #f1c40f !important;
+        }
+
+        .hand .card.selected {
+            transform: translateY(-20px) scale(1.08);
+            z-index: 20;
+        }
+
+        /* 牌組資訊 */
+        .deck-area { 
+            text-align: center; 
+            min-width: 80px; 
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.4rem;
+            position: relative;
+            z-index: 5;
+        }
+
+        .deck-area p { 
+            margin: 0; 
+            font-size: 0.9rem; 
+            color: #bdc3c7; 
+            font-weight: 600;
+        }
+
+        .deck-count { 
+            font-size: 1.5rem; 
+            font-weight: bold; 
+            color: #f1c40f; 
+            background: rgba(0,0,0,0.3);
+            padding: 0.4rem 0.8rem;
+            border-radius: 6px;
+            border: 1px solid #4a5a6a;
+            min-width: 40px;
+            text-align: center;
+        }
+
+        /* 隊伍指示器 */
         .team-indicator { 
             font-size: 0.8rem; 
             font-weight: 600; 
@@ -452,136 +611,58 @@
             border: 1px solid #3498db;
         }
 
-        #outcome-text { 
-            position: absolute; 
-            bottom: 15px; 
-            left: 50%; 
-            transform: translateX(-50%); 
-            font-size: 1.1rem; 
-            font-weight: 600; 
-            color: #f39c12; 
-            text-align: center; 
-            background: rgba(0,0,0,0.8); 
-            padding: 0.8rem 1.5rem; 
-            border-radius: 8px; 
-            max-width: 75%; 
-            word-wrap: break-word; 
-            border: 1px solid #4a5a6a;
-            backdrop-filter: blur(2px);
-            z-index: 10;
+        /* 拖拽相關樣式 */
+        .card.dragging {
+            opacity: 0.8 !important;
+            transform: rotate(8deg) scale(1.1) !important;
+            z-index: 1000 !important;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.6) !important;
         }
 
-        .game-state-display { 
-            display: flex; 
-            flex-direction: column; 
-            align-items: flex-end; 
-            gap: 0.8rem; 
+        #batter-zone.drag-over {
+            border-color: #f1c40f !important;
+            background: rgba(241, 196, 15, 0.3) !important;
+            transform: scale(1.08) !important;
+            box-shadow: 0 0 25px rgba(241, 196, 15, 0.7) !important;
         }
 
-        .outs-display { 
-            display: flex; 
-            gap: 0.8rem; 
+        /* 視覺效果 */
+        .card-played-effect {
+            animation: cardPlayedPulse 1s ease-out;
         }
 
-        .out-light { 
-            width: 20px; 
-            height: 20px; 
-            border-radius: 50%; 
-            background-color: #3a4a5a; 
-            border: 2px solid #5a6a7a; 
-            transition: all 0.3s ease; 
+        @keyframes cardPlayedPulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.1); box-shadow: 0 0 30px #f1c40f; }
+            100% { transform: scale(1); }
         }
 
-        .out-light.active { 
-            background-color: #e74c3c; 
-            border-color: #c0392b;
-            box-shadow: 0 0 12px #e74c3c; 
+        .score-increase {
+            animation: scoreIncrease 1s ease-out;
         }
 
-        .inning-display { 
-            font-size: 1.4rem; 
-            font-weight: 600; 
-            color: #bdc3c7; 
-            text-align: right;
+        @keyframes scoreIncrease {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.2); color: #f1c40f; }
+            100% { transform: scale(1); }
         }
 
-        #cpu-pitcher-area, #player-pitcher-area {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 0.5rem;
-            position: relative;
-            z-index: 2;
-        }
-
-        #active-effects-display {
-            font-size: 0.8rem; 
-            min-height: 40px; 
-            background: rgba(0,0,0,0.4); 
-            border-radius: 8px; 
-            padding: 0.8rem; 
-            display: flex; 
-            justify-content: center; 
-            flex-wrap: wrap; 
-            gap: 0.5rem; 
-            align-items: center; 
-            border: 1px solid #4a5a6a;
-            width: 85%; 
-            max-width: 500px;
-            text-align: center; 
-            color: #f1c40f; 
-            margin: 1rem;
-        }
-
-        .special-states { 
-            position: absolute; 
-            top: 10px; 
-            left: 10px; 
-            display: flex; 
-            flex-direction: column; 
-            gap: 6px; 
-            z-index: 20;
-        }
-
-        .special-state { 
-            background: rgba(0,0,0,0.85); 
-            padding: 4px 8px; 
-            border-radius: 6px; 
-            font-size: 0.75rem; 
-            font-weight: bold;
-            border: 1px solid;
-            backdrop-filter: blur(2px);
-        }
-
-        .special-state.mygo-synergy { 
-            color: #3498db; 
-            border-color: #3498db;
-        }
-
-        .special-state.mujica-synergy { 
-            color: #9b59b6; 
-            border-color: #9b59b6;
-        }
-
-        .loading { 
+        .loading, .error-message { 
             text-align: center; 
             padding: 3rem; 
             font-size: 1.5rem; 
-            color: #f1c40f; 
             background: rgba(0,0,0,0.3);
             border-radius: 10px;
             margin: 2rem;
         }
+        
+        .loading {
+            color: #f1c40f; 
+        }
 
         .error-message { 
             color: #e74c3c; 
-            background: rgba(231, 76, 60, 0.1); 
-            padding: 2rem; 
-            border-radius: 10px; 
-            margin: 2rem; 
             border: 2px solid #e74c3c; 
-            text-align: center;
         }
 
         .secondary-button { 
@@ -600,10 +681,69 @@
             background: linear-gradient(145deg, #7f8c8d, #95a5a6); 
             transform: translateY(-2px);
         }
+        
+        .card-tooltip {
+            position: absolute !important;
+            background: rgba(0,0,0,0.95) !important;
+            color: #fff !important;
+            padding: 1rem 1.5rem !important;
+            border-radius: 10px !important;
+            border: 2px solid #4a5a6a !important;
+            font-size: 0.9rem !important;
+            max-width: 350px !important;
+            word-wrap: break-word !important;
+            z-index: 2000 !important;
+            box-shadow: 0 8px 25px rgba(0,0,0,0.6) !important;
+            backdrop-filter: blur(8px) !important;
+            pointer-events: none !important;
+            transition: opacity 0.2s ease !important;
+        }
 
-        @keyframes pulse {
-            0%, 100% { transform: scale(1); }
-            50% { transform: scale(1.05); }
+        /* 響應式設計 */
+        @media (max-width: 1200px) {
+            .field {
+                grid-template-columns: 150px 1fr 150px;
+            }
+            .card {
+                width: 110px;
+                height: 155px;
+            }
+            .card.pitcher-card {
+                width: 95px;
+                height: 135px;
+            }
+            .hand .card {
+                min-width: 110px;
+            }
+            .bases-container {
+                gap: 1.5rem !important;
+            }
+            .base {
+                width: 45px !important;
+                height: 45px !important;
+                font-size: 0.75rem !important;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .field {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+            }
+            #cpu-pitcher-area { grid-row: 1; }
+            .center-field { grid-row: 2; }
+            #player-pitcher-area { grid-row: 3; }
+            .hand {
+                gap: 0.5rem;
+                max-width: 85%;
+            }
+            .card {
+                width: 95px;
+                height: 135px;
+            }
+            .hand .card {
+                min-width: 95px;
+            }
         }
     </style>
 </head>
@@ -625,42 +765,19 @@
         </div>
         
         <div class="field">
-            <!-- 左側：客隊投手 -->
-            <div id="cpu-pitcher-area">
-                <!-- 投手卡會在這裡渲染 -->
-            </div>
-            
-            <!-- 中央：遊戲區域 -->
+            <div id="cpu-pitcher-area"></div>
             <div class="center-field">
+                <div id="batter-zone"></div>
                 <div class="bases-container">
-                    <div id="third-base" class="base">3B</div>
-                    <div id="second-base" class="base">2B</div>
-                    <div id="first-base" class="base">1B</div>
+                    <div id="base-2" class="base">3B</div>
+                    <div id="base-1" class="base">2B</div>
+                    <div id="base-0" class="base">1B</div>
                 </div>
-                
-                <!-- 打擊區域 -->
-                <div id="batter-zone" class="batter-zone">
-                    <div class="zone-label">打擊區</div>
-                    <div class="zone-instruction">拖拽打者到這裡</div>
-                </div>
-                
-                <div id="active-effects-display">
-                    無活躍效果
-                </div>
+                <div id="active-effects-display">無活躍效果</div>
             </div>
-            
-            <!-- 右側：主隊投手 -->
-            <div id="player-pitcher-area">
-                <!-- 投手卡會在這裡渲染 -->
-            </div>
-            
-            <div class="special-states" id="special-states">
-                <!-- 特殊狀態會在這裡顯示 -->
-            </div>
-            
-            <div id="outcome-text">
-                🎸 MyGO!!!!! 準備就緒！點擊 Play Ball 開始遊戲！
-            </div>
+            <div id="player-pitcher-area"></div>
+            <div class="special-states" id="special-states"></div>
+            <div id="outcome-text">🎸 MyGO!!!!! 準備就緒！點擊 Play Ball 開始遊戲！</div>
         </div>
         
         <div class="action-area">
@@ -673,9 +790,7 @@
                 <p>牌庫</p>
                 <div class="deck-count" id="player-deck-count">0</div>
             </div>
-            <div id="player-hand" class="hand">
-                <!-- 手牌會在這裡渲染 -->
-            </div>
+            <div id="player-hand" class="hand"></div>
             <div class="deck-area">
                 <p>棄牌堆</p>
                 <div class="deck-count" id="player-discard-count">0</div>
@@ -683,7 +798,6 @@
         </div>
     </div>
 
-    <!-- 錯誤處理 -->
     <div id="error-container" style="display: none;">
         <div class="error-message">
             <h3>🚨 遊戲載入失敗</h3>
@@ -692,76 +806,11 @@
         </div>
     </div>
 
-    <!-- 載入中 -->
     <div id="loading-container" class="loading">
         <div>🎸 MyGO!!!!! TCG 載入中...</div>
         <div style="margin-top: 1rem; font-size: 0.9rem;">正在準備樂隊成員...</div>
     </div>
 
-    <script>
-        // 載入邏輯保持不變
-        document.getElementById('loading-container').style.display = 'block';
-        document.querySelector('.game-container').style.display = 'none';
-
-        window.addEventListener('error', (e) => {
-            console.error('全域錯誤:', e);
-            showError(`JavaScript 錯誤: ${e.message}`);
-        });
-
-        window.addEventListener('unhandledrejection', (e) => {
-            console.error('未處理的 Promise 拒絕:', e);
-            showError(`Promise 錯誤: ${e.reason}`);
-        });
-
-        function showError(message) {
-            document.getElementById('loading-container').style.display = 'none';
-            document.querySelector('.game-container').style.display = 'none';
-            document.getElementById('error-container').style.display = 'block';
-            document.getElementById('error-details').textContent = message;
-        }
-
-        function hideLoading() {
-            document.getElementById('loading-container').style.display = 'none';
-            document.querySelector('.game-container').style.display = 'flex';
-        }
-
-        async function loadGame() {
-            try {
-                console.log('🎯 開始載入遊戲模組...');
-                
-                const configModule = await import('./src/data/config.js');
-                console.log('✅ Config 載入成功:', configModule.CONFIG);
-                
-                const teamsModule = await import('./src/data/teams.js');
-                console.log('✅ Teams 載入成功:', teamsModule.TEAMS);
-                
-                const gameStateModule = await import('./src/engine/game_state.js');
-                console.log('✅ Game State 載入成功');
-                
-                const uiModule = await import('./src/ui/ui.js');
-                console.log('✅ UI 載入成功');
-                
-                const mainModule = await import('./src/main.js');
-                console.log('✅ Main Game 載入成功');
-                
-                hideLoading();
-                console.log('🎉 遊戲載入完成！');
-                
-            } catch (error) {
-                console.error('❌ 遊戲載入失敗:', error);
-                showError(`模組載入失敗: ${error.message}
-
-可能的原因：
-1. 檔案路徑不正確
-2. 模組語法錯誤
-3. 相依性問題
-4. 伺服器配置問題
-
-請檢查瀏覽器開發者工具的 Console 和 Network 頁籤以獲取更多詳細資訊。`);
-            }
-        }
-
-        setTimeout(loadGame, 100);
-    </script>
+    <script type="module" src="./src/main.js"></script>
 </body>
 </html>

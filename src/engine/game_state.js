@@ -5,52 +5,30 @@ import { TEAMS } from '../data/teams.js';
 
 export function createGameState() {
   return {
-    cfg: CONFIG,
-    currentInning: 1,
-    half: 'top', // CPU (away) bats first
-    outs: 0,
-    bases: [null, null, null],
-    score: { away: 0, home: 0 },
-    
+    CONFIG,
+    TEAMS,
     player: {
-      // 現在預設使用 MyGO!!!!! 隊伍 (MGO)
-      team: getTeamById("MGO") || TEAMS[0], // 如果找不到MGO就用第一個隊伍
+      team: null,
       deck: [],
       hand: [],
       discard: [],
-      pitcher: null, // Will be set during initialization
+      pitcher: null
     },
-    
     cpu: {
-      // CPU 使用 Yankees 隊伍
-      team: getTeamById("NYY") || TEAMS[0], 
+      team: null,
       deck: [],
-      activePitcher: null,
+      activePitcher: null
     },
-    
+    currentInning: 1,
+    half: 'top',
+    outs: 0,
+    score: { away: 0, home: 0 },
+    bases: [null, null, null],
     selected: -1,
     over: false,
-    playerTurn: false, // CPU starts first (away team)
+    playerTurn: false,
     activeEffects: [],
-    
-    // === 新增的遊戲狀態追蹤 ===
-    gameStats: {
-      totalTurns: 0,
-      playerAtBats: 0,
-      cpuAtBats: 0,
-      effectsTriggered: 0,
-      cardsPlayed: 0
-    },
-    
-    // 鎖定的角色（用於"一輩子"效果）
-    lockedCharacters: [],
-    
-    // 被動效果追蹤
-    passiveEffects: {
-      handBuffs: [], // 手牌中的被動效果
-      fieldAuras: [], // 場上的光環效果
-      permanentMods: [] // 永久修改
-    }
+    mygoInitialized: false // Flag to check if the special team is loaded
   };
 }
 
