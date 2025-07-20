@@ -269,6 +269,7 @@ export class EffectProcessor {
 
   // === 條件效果處理器 ===
 
+  // 新增：handleConditionalBuff 方法
   handleConditionalBuff(effectData, card) {
     if (!this.checkCondition(effectData.condition, card)) {
       return { success: false, reason: '條件不符' };
@@ -289,6 +290,7 @@ export class EffectProcessor {
     };
   }
 
+  // 新增：handleConditionalDraw 方法
   handleConditionalDraw(effectData, card) {
     const baseCount = effectData.baseValue || 1;
     let totalDraw = baseCount;
@@ -307,6 +309,7 @@ export class EffectProcessor {
     };
   }
 
+  // 新增：handleConditionalEffect 方法
   handleConditionalEffect(effectData, card) {
     const homeScore = this.state.score.home;
     const awayScore = this.state.score.away;
@@ -350,85 +353,89 @@ export class EffectProcessor {
 
   // === 高級效果處理器 ===
 
-  handleCopyStats(effectData, card) {
-    if (!this.checkCondition(effectData.condition, card)) {
-      return { success: false, reason: '條件不符' };
-    }
+  // 新增：handleCopyStats 方法
+handleCopyStats(effectData, card) {
+  if (!this.checkCondition(effectData.condition, card)) {
+    return { success: false, reason: '條件不符' };
+  }
 
-    // 找到祥子
-    const saki = this.state.bases.find(base => base && base.name.includes('祥子'));
-    if (!saki) {
-      return { success: false, reason: '找不到祥子' };
-    }
+  // 找到祥子
+  const saki = this.state.bases.find(base => base && base.name.includes('祥子'));
+  if (!saki) {
+    return { success: false, reason: '找不到祥子' };
+  }
 
-    // 複製祥子的數值（包含永久加成）
-    const sakiStats = this.calculateTotalStats(saki);
-    
-    // 為初華設置臨時數值
-    card.tempBonus = card.tempBonus || {};
-    Object.keys(sakiStats).forEach(stat => {
-      card.tempBonus[stat] = sakiStats[stat] - (card.stats[stat] || 0);
+  // 複製祥子的數值（包含永久加成）
+  const sakiStats = this.calculateTotalStats(saki);
+  
+  // 為初華設置臨時數值
+  card.tempBonus = card.tempBonus || {};
+  Object.keys(sakiStats).forEach(stat => {
+    card.tempBonus[stat] = sakiStats[stat] - (card.stats[stat] || 0);
+  });
+
+  return {
+    success: true,
+    description: `${card.name} 複製了祥子的所有數值！`
+  };
+}
+
+// 新增：handleDeckPeek 方法
+handleDeckPeek(effectData, card) {
+  const peekCount = effectData.value || 3;
+  const topCards = this.state.player.deck.slice(-peekCount);
+  
+  // 這裡應該有UI讓玩家重新排列，暫時只是記錄
+  console.log(`🔍 ${card.name} 檢視了牌庫頂的 ${peekCount} 張牌:`, topCards.map(c => c.name));
+  
+  return {
+    success: true,
+    description: `${card.name} 檢視並重新排列了牌庫頂的 ${peekCount} 張牌`
+  };
+}
+
+// 新增：handlePowerTransfer 方法
+handlePowerTransfer(effectData, card) {
+  // 永久力量轉移（死聲效果）
+  const targetName = effectData.target;
+  const stat = effectData.stat;
+  const value = effectData.value;
+
+  // 記錄永久效果
+  if (!this.permanentEffects.has(targetName)) {
+    this.permanentEffects.set(targetName, {});
+  }
+
+  const targetEffects = this.permanentEffects.get(targetName);
+  if (stat === 'allStats') {
+    ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
+      targetEffects[s] = (targetEffects[s] || 0) + value;
     });
-
-    return {
-      success: true,
-      description: `${card.name} 複製了祥子的所有數值！`
-    };
+  } else {
+    targetEffects[stat] = (targetEffects[stat] || 0) + value;
   }
 
-  handleDeckPeek(effectData, card) {
-    const peekCount = effectData.value || 3;
-    const topCards = this.state.player.deck.slice(-peekCount);
-    
-    // 這裡應該有UI讓玩家重新排列，暫時只是記錄
-    console.log(`🔍 ${card.name} 檢視了牌庫頂的 ${peekCount} 張牌:`, topCards.map(c => c.name));
-    
-    return {
-      success: true,
-      description: `${card.name} 檢視並重新排列了牌庫頂的 ${peekCount} 張牌`
-    };
-  }
-
-  handlePowerTransfer(effectData, card) {
-    // 永久力量轉移（死聲效果）
-    const targetName = effectData.target;
-    const stat = effectData.stat;
-    const value = effectData.value;
-
-    // 記錄永久效果
-    if (!this.permanentEffects.has(targetName)) {
-      this.permanentEffects.set(targetName, {});
-    }
-
-    const targetEffects = this.permanentEffects.get(targetName);
-    if (stat === 'allStats') {
-      ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
-        targetEffects[s] = (targetEffects[s] || 0) + value;
-      });
-    } else {
-      targetEffects[stat] = (targetEffects[stat] || 0) + value;
-    }
-
-    // 如果目標角色在場上，立即應用效果
-    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
-      if (targetCard && this.isTargetCard(targetCard, targetName)) {
-        targetCard.permanentBonus = targetCard.permanentBonus || {};
-        if (stat === 'allStats') {
-          ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
-            targetCard.permanentBonus[s] = (targetCard.permanentBonus[s] || 0) + value;
-          });
-        } else {
-          targetCard.permanentBonus[stat] = (targetCard.permanentBonus[stat] || 0) + value;
-        }
+  // 如果目標角色在場上，立即應用效果
+  [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+    if (targetCard && this.isTargetCard(targetCard, targetName)) {
+      targetCard.permanentBonus = targetCard.permanentBonus || {};
+      if (stat === 'allStats') {
+        ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
+          targetCard.permanentBonus[s] = (targetCard.permanentBonus[s] || 0) + value;
+        });
+      } else {
+        targetCard.permanentBonus[stat] = (targetCard.permanentBonus[stat] || 0) + value;
       }
-    });
+    }
+  });
 
-    return {
-      success: true,
-      description: `${card.name} 為 ${targetName} 永久增加了 ${stat}+${value}`
-    };
-  }
+  return {
+    success: true,
+    description: `${card.name} 為 ${targetName} 永久增加了 ${stat}+${value}`
+  };
+}
 
+// 新增：handleTargetSpecific 方法
   handleTargetSpecific(effectData, card) {
     const targetName = effectData.target;
     
@@ -451,7 +458,7 @@ export class EffectProcessor {
       } else {
         target.tempBonus[effectData.stat] = (target.tempBonus[effectData.stat] || 0) + effectData.value;
       }
-    });
+  });
 
     // 執行獎勵效果
     if (effectData.bonusEffect && effectData.bonusEffect.keyword === 'draw') {
@@ -464,6 +471,7 @@ export class EffectProcessor {
     };
   }
 
+  // 新增：handleDoubleBonus 方法
   handleDoubleBonus(effectData, card) {
     // 祥子的"世界的中心"效果
     const permanentBonus = card.permanentBonus || {};
@@ -479,6 +487,43 @@ export class EffectProcessor {
       description: `${card.name} 的永久加成再次生效！`
     };
   }
+
+  // 新增：cleanupExpiredEffects 方法
+  cleanupExpiredEffects(state, context = 'turn') {
+    const sizeBefore = state.activeEffects.length;
+    
+    switch (context) {
+      case 'atBat':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration !== 'atBat'
+        );
+        break;
+      case 'turn':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration !== 'atBat' && effect.duration !== 'turn'
+        );
+        break;
+      case 'inning':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration !== 'atBat' && 
+          effect.duration !== 'turn' && 
+          effect.duration !== 'inning'
+        );
+        break;
+      case 'game':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration === 'permanent'
+        );
+        break;
+    }
+    
+    const sizeAfter = state.activeEffects.length;
+    if (sizeBefore !== sizeAfter) {
+      console.log(`🧹 清理了 ${sizeBefore - sizeAfter} 個過期效果 (${context})`);
+    }
+  }
+
+  
 
   // === 戰術卡特殊效果處理器 ===
 
@@ -607,7 +652,28 @@ export class EffectProcessor {
     };
   }
 
-  handleMaxStats
+  // 新增：在 EffectProcessor 類中添加缺失的 handleMaxStats 方法
+  handleMaxStats(effectData, card) {
+    const currentBatter = this.getCurrentBatter();
+    if (!currentBatter) {
+      return { success: false, reason: '沒有當前打者' };
+    }
+
+    // 設置最大數值
+    currentBatter.tempBonus = currentBatter.tempBonus || {};
+    Object.keys(effectData.stats).forEach(stat => {
+      const targetValue = effectData.stats[stat];
+      const currentValue = currentBatter.stats[stat] + (currentBatter.tempBonus[stat] || 0);
+      if (currentValue < targetValue) {
+        currentBatter.tempBonus[stat] = targetValue - currentBatter.stats[stat];
+      }
+    });
+
+    return {
+      success: true,
+      description: `${currentBatter.name} 本次打擊數值設為最大值！`
+    };
+  }
 
   // === 輔助方法 ===
 
@@ -813,43 +879,7 @@ export class EffectProcessor {
     // 這個關鍵字的主要邏輯在卡牌效果本身，而非通用處理器
     return { success: true, description: `犧牲效果已在卡牌中處理` };
   }
-  // 🔧 修改：在 EffectProcessor 類中正確定義 cleanupExpiredEffects 方法
-  /**
-   * 清理過期效果
-   */
-  cleanupExpiredEffects(state, context = 'turn') {
-    const sizeBefore = state.activeEffects.length;
-    
-    switch (context) {
-      case 'atBat':
-        state.activeEffects = state.activeEffects.filter(effect => 
-          effect.duration !== 'atBat'
-        );
-        break;
-      case 'turn':
-        state.activeEffects = state.activeEffects.filter(effect => 
-          effect.duration !== 'atBat' && effect.duration !== 'turn'
-        );
-        break;
-      case 'inning':
-        state.activeEffects = state.activeEffects.filter(effect => 
-          effect.duration !== 'atBat' && 
-          effect.duration !== 'turn' && 
-          effect.duration !== 'inning'
-        );
-        break;
-      case 'game':
-        state.activeEffects = state.activeEffects.filter(effect => 
-          effect.duration === 'permanent'
-        );
-        break;
-    }
-    
-    const sizeAfter = state.activeEffects.length;
-    if (sizeBefore !== sizeAfter) {
-      console.log(`🧹 清理了 ${sizeBefore - sizeAfter} 個過期效果 (${context})`);
-    }
-  }
+
 
 
 } // 補上 EffectProcessor class 的結尾 }
