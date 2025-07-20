@@ -1,4 +1,4 @@
-// src/engine/effects.js - 可擴展的效果系統
+// src/engine/effects.js - Enhanced effect system for new card mechanics
 
 export const EFFECT_KEYWORDS = {
   // === 基礎動作關鍵字 ===
@@ -11,12 +11,22 @@ export const EFFECT_KEYWORDS = {
   BUFF: 'buff',
   DEBUFF: 'debuff',
   SET_TO: 'setTo',
+  MAX_STATS: 'max_stats',
   
   // === 狀態關鍵字 ===
   LOCK: 'lock',
   UNLOCK: 'unlock',
   IMMUNE: 'immune',
   UNTARGETABLE: 'untargetable',
+  
+  // === 條件關鍵字 ===
+  CONDITIONAL_BUFF: 'conditional_buff',
+  CONDITIONAL_DRAW: 'conditional_draw',
+  CONDITIONAL_EFFECT: 'conditional_effect',
+  
+  // === 新增：戰吼/死聲關鍵字 ===
+  BATTLECRY: 'battlecry',
+  DEATHRATTLE: 'deathrattle',
   
   // === 位置關鍵字 ===
   ADVANCE: 'advance',
@@ -25,9 +35,18 @@ export const EFFECT_KEYWORDS = {
   
   // === 特殊關鍵字 ===
   COPY: 'copy',
+  COPY_STATS: 'copy_stats',
   DESTROY: 'destroy',
   TRANSFORM: 'transform',
-  SACRIFICE: 'sacrifice'
+  SACRIFICE: 'sacrifice',
+  FUSION: 'fusion',
+  RESURRECT: 'resurrect',
+  
+  // === 新增：高級效果 ===
+  DECK_PEEK: 'deck_peek',
+  POWER_TRANSFER: 'power_transfer',
+  TARGET_SPECIFIC: 'target_specific',
+  DOUBLE_BONUS: 'double_bonus'
 };
 
 export const TARGET_TYPES = {
@@ -35,11 +54,17 @@ export const TARGET_TYPES = {
   ALL_FRIENDLY: 'allFriendly',
   ALL_ENEMY: 'allEnemy',
   ALL_ON_BASE: 'allOnBase',
+  ALL_MYGO_BATTERS: 'allMyGOBatters',
+  CURRENT_BATTER: 'currentBatter',
+  ENEMY_PITCHER: 'enemyPitcher',
   HAND: 'hand',
   DECK: 'deck',
   DISCARD_PILE: 'discardPile',
   CHOOSE_ONE: 'chooseOne',
-  RANDOM_ONE: 'randomOne'
+  CHOOSE_FROM_BASE: 'chooseFromBase',
+  CHOOSE_MYGO_FROM_HAND: 'chooseMyGOFromHand',
+  RANDOM_ONE: 'randomOne',
+  SPECIFIC_CARD: 'specificCard'
 };
 
 export const CONDITIONS = {
@@ -47,6 +72,7 @@ export const CONDITIONS = {
   ON_BASE: 'onBase',
   IN_HAND: 'inHand',
   ON_PLAY: 'onPlay',
+  BASES_EMPTY: 'basesEmpty',
   
   // === 數量條件 ===
   COUNT_EQUAL: 'countEqual',
@@ -58,7 +84,14 @@ export const CONDITIONS = {
   HAS_INSTRUMENT: 'hasInstrument',
   HAS_BAND: 'hasBand',
   IS_TRAILING: 'isTrailing',
-  IS_LEADING: 'isLeading'
+  IS_LEADING: 'isLeading',
+  
+  // === MyGO!!!!! 特定條件 ===
+  MYGO_MEMBERS_ON_BASE: 'mygoMembersOnBase',
+  TOMORI_ON_BASE: 'tomoriOnBase',
+  SAKI_ON_BASE: 'sakiOnBase',
+  ANY_CHARACTER_DIES: 'anyCharacterDies',
+  SCORE_COMPARISON: 'scoreComparison'
 };
 
 export const DURATIONS = {
@@ -67,17 +100,21 @@ export const DURATIONS = {
   TURN: 'turn',
   INNING: 'inning',
   GAME: 'game',
-  PERMANENT: 'permanent'
+  PERMANENT: 'permanent',
+  NEXT_PLAY: 'nextPlay',
+  UNTIL_NEXT_TURN: 'untilNextTurn'
 };
 
 /**
- * 標準化的效果處理器
- * 這個類負責解析和執行所有卡牌效果
+ * 增強的效果處理器
+ * 支援新的卡牌機制：戰吼、死聲、條件效果等
  */
 export class EffectProcessor {
   constructor(gameState) {
     this.state = gameState;
     this.handlers = new Map();
+    this.permanentEffects = new Map(); // 儲存永久效果
+    this.nextCardBuffs = []; // 儲存下一張卡的加成
     this.registerDefaultHandlers();
   }
 
@@ -95,15 +132,32 @@ export class EffectProcessor {
     this.register(EFFECT_KEYWORDS.BUFF, this.handleBuff.bind(this));
     this.register(EFFECT_KEYWORDS.DEBUFF, this.handleDebuff.bind(this));
     this.register(EFFECT_KEYWORDS.SET_TO, this.handleSetTo.bind(this));
+    this.register(EFFECT_KEYWORDS.MAX_STATS, this.handleMaxStats.bind(this));
+    
+    // 條件效果
+    this.register(EFFECT_KEYWORDS.CONDITIONAL_BUFF, this.handleConditionalBuff.bind(this));
+    this.register(EFFECT_KEYWORDS.CONDITIONAL_DRAW, this.handleConditionalDraw.bind(this));
+    this.register(EFFECT_KEYWORDS.CONDITIONAL_EFFECT, this.handleConditionalEffect.bind(this));
+    
+    // 高級效果
+    this.register(EFFECT_KEYWORDS.COPY_STATS, this.handleCopyStats.bind(this));
+    this.register(EFFECT_KEYWORDS.DECK_PEEK, this.handleDeckPeek.bind(this));
+    this.register(EFFECT_KEYWORDS.POWER_TRANSFER, this.handlePowerTransfer.bind(this));
+    this.register(EFFECT_KEYWORDS.TARGET_SPECIFIC, this.handleTargetSpecific.bind(this));
+    this.register(EFFECT_KEYWORDS.DOUBLE_BONUS, this.handleDoubleBonus.bind(this));
+    
+    // 戰術卡特殊效果
+    this.register('discard_draw', this.handleDiscardDraw.bind(this));
+    this.register('sacrifice_debuff', this.handleSacrificeDebuff.bind(this));
+    this.register('deck_cycle', this.handleDeckCycle.bind(this));
+    this.register('power_boost', this.handlePowerBoost.bind(this));
+    this.register('drawBaseOnMyGO', this.handleDrawBaseOnMyGO.bind(this));
+    this.register('target_buff', this.handleTargetBuff.bind(this));
     
     // 狀態效果
     this.register(EFFECT_KEYWORDS.LOCK, this.handleLock.bind(this));
     this.register(EFFECT_KEYWORDS.IMMUNE, this.handleImmune.bind(this));
     this.register(EFFECT_KEYWORDS.UNTARGETABLE, this.handleUntargetable.bind(this));
-    
-    // 位置效果
-    this.register(EFFECT_KEYWORDS.ADVANCE, this.handleAdvance.bind(this));
-    this.register(EFFECT_KEYWORDS.RETREAT, this.handleRetreat.bind(this));
     
     // 特殊效果
     this.register(EFFECT_KEYWORDS.COPY, this.handleCopy.bind(this));
@@ -112,7 +166,7 @@ export class EffectProcessor {
   }
 
   /**
-   * 註冊新的效果處理器（供擴展使用）
+   * 註冊新的效果處理器
    */
   register(keyword, handler) {
     this.handlers.set(keyword, handler);
@@ -122,10 +176,11 @@ export class EffectProcessor {
    * 處理卡牌效果的主要入口
    */
   processEffect(card, effectData, trigger) {
-    console.log(`處理效果: ${card.name} - ${trigger}`);
+    console.log(`🎭 處理效果: ${card.name} - ${trigger}`);
     
     // 檢查觸發條件
     if (!this.checkCondition(effectData.condition, card)) {
+      console.log(`❌ 條件不符: ${effectData.condition}`);
       return { success: false, reason: '條件不符' };
     }
 
@@ -134,11 +189,18 @@ export class EffectProcessor {
     const handler = this.handlers.get(action);
     
     if (!handler) {
-      console.warn(`未知的效果關鍵字: ${action}`);
+      console.warn(`⚠️ 未知的效果關鍵字: ${action}`);
       return { success: false, reason: '未知效果' };
     }
 
-    return handler(effectData, card);
+    try {
+      const result = handler(effectData, card);
+      console.log(`✅ 效果執行成功: ${result.description}`);
+      return result;
+    } catch (error) {
+      console.error(`❌ 效果執行失敗: ${error.message}`);
+      return { success: false, reason: error.message };
+    }
   }
 
   /**
@@ -154,35 +216,26 @@ export class EffectProcessor {
       case CONDITIONS.IN_HAND:
         return this.state.player.hand.some(handCard => handCard.name === card.name);
       
-      case 'mygo3OnBase':
-        return this.state.bases.filter(base => base && base.band === 'MyGO!!!!!').length >= 3;
+      case CONDITIONS.BASES_EMPTY:
+        return this.state.bases.every(base => base === null);
       
-      case 'mujica3OnBase':
-        return this.state.bases.filter(base => base && base.band === 'Mujica').length >= 3;
+      case CONDITIONS.MYGO_MEMBERS_ON_BASE:
+        return this.state.bases.some(base => base && base.band === 'MyGO!!!!!');
       
-      case 'tomoriOnBase':
+      case CONDITIONS.TOMORI_ON_BASE:
         return this.state.bases.some(base => base && base.name.includes('燈'));
       
-      case 'sakiOnBase':
+      case CONDITIONS.SAKI_ON_BASE:
         return this.state.bases.some(base => base && base.name.includes('祥子'));
       
-      case 'crychicOnBase':
-        return this.state.bases.some(base => base && (base.name.includes('祥子') || base.name.includes('睦')));
+      case CONDITIONS.SCORE_COMPARISON:
+        return true; // 在具體處理中判斷
       
-      case 'enemyHasSaki':
-        return this.state.cpu.deck.some(card => card.name.includes('祥子'));
-      
-      case 'perGuitaristOnBase':
-        return this.state.bases.filter(base => base && base.instrument === 'Guitar').length;
-      
-      case 'enemyDrummerOnBase':
-        // 這需要追蹤CPU的壘包狀態，暫時返回false
-        return false;
-      
-      case 'takiOnBase':
-        return this.state.bases.some(base => base && base.name.includes('立希'));
+      case CONDITIONS.ANY_CHARACTER_DIES:
+        return true; // 死亡事件觸發時檢查
       
       default:
+        console.log(`🔍 未知條件: ${condition}`);
         return true;
     }
   }
@@ -200,7 +253,6 @@ export class EffectProcessor {
 
   handleDiscard(effectData, card) {
     const count = effectData.value || 1;
-    // 實作棄牌邏輯
     if (this.state.player.hand.length >= count) {
       for (let i = 0; i < count; i++) {
         const discarded = this.state.player.hand.pop();
@@ -214,54 +266,458 @@ export class EffectProcessor {
     return { success: false, reason: '手牌不足' };
   }
 
-  handleSearch(effectData, card) {
-    const searchFor = effectData.searchFor;
-    const deck = this.state.player.deck;
-    
-    // MyGO特殊搜尋
-    if (effectData.action === 'searchMyGO') {
-      const mygoCard = deck.find(c => c.band === 'MyGO!!!!!');
-      if (mygoCard) {
-        deck.splice(deck.indexOf(mygoCard), 1);
-        this.state.player.hand.push(mygoCard);
-        return { 
-          success: true, 
-          description: `${card.name} 找到了 ${mygoCard.name}` 
-        };
-      }
-    }
-    
-    if (effectData.action === 'searchSaki') {
-      const sakiCard = deck.find(c => c.name.includes('祥子'));
-      if (sakiCard) {
-        deck.splice(deck.indexOf(sakiCard), 1);
-        this.state.player.hand.push(sakiCard);
-        return { 
-          success: true, 
-          description: `${card.name} 找到了祥子` 
-        };
-      } else {
-        // 如果祥子已經在場上或手牌，改為抽兩張
-        this.drawCards(this.state.player, 2);
-        return { 
-          success: true, 
-          description: `祥子已經在場，${card.name} 改為抽兩張卡` 
-        };
-      }
-    }
-    
-    return { success: false, reason: '找不到目標卡牌' };
-  }
+  // === 條件效果處理器 ===
 
-  handleShuffle(effectData, card) {
-    this.shuffleDeck(this.state.player.deck);
-    return { 
-      success: true, 
-      description: `${card.name} 洗了牌庫` 
+  handleConditionalBuff(effectData, card) {
+    if (!this.checkCondition(effectData.condition, card)) {
+      return { success: false, reason: '條件不符' };
+    }
+
+    const target = this.getTargets(effectData.target, card)[0];
+    if (!target) {
+      return { success: false, reason: '找不到目標' };
+    }
+
+    // 應用臨時加成
+    target.tempBonus = target.tempBonus || {};
+    target.tempBonus[effectData.stat] = (target.tempBonus[effectData.stat] || 0) + effectData.value;
+
+    return {
+      success: true,
+      description: `${card.name}: ${effectData.description}`
     };
   }
 
-  // === 數值修改處理器 ===
+  handleConditionalDraw(effectData, card) {
+    const baseCount = effectData.baseValue || 1;
+    let totalDraw = baseCount;
+
+    // 計算額外抽牌數
+    if (effectData.action === 'drawBaseOnMyGO') {
+      const mygoCount = this.state.bases.filter(base => base && base.band === 'MyGO!!!!!').length;
+      const bonusDraw = Math.min(mygoCount * (effectData.bonusPerMyGO || 1), effectData.maxBonus || 3);
+      totalDraw += bonusDraw;
+    }
+
+    this.drawCards(this.state.player, totalDraw);
+    return {
+      success: true,
+      description: `${card.name} 抽了 ${totalDraw} 張卡`
+    };
+  }
+
+  handleConditionalEffect(effectData, card) {
+    const homeScore = this.state.score.home;
+    const awayScore = this.state.score.away;
+    
+    let actionToExecute = null;
+
+    effectData.actions.forEach(action => {
+      if (action.condition === 'leading' && homeScore > awayScore) {
+        actionToExecute = action;
+      } else if (action.condition === 'trailing' && homeScore < awayScore) {
+        actionToExecute = action;
+      }
+    });
+
+    if (!actionToExecute) {
+      return { success: false, reason: '沒有符合的條件' };
+    }
+
+    // 執行對應的動作
+    switch (actionToExecute.keyword) {
+      case 'draw':
+        this.drawCards(this.state.player, actionToExecute.value);
+        return { success: true, description: actionToExecute.description };
+      
+      case 'debuff':
+        // 對敵方投手施加減益
+        this.addActiveEffect({
+          source: card.name,
+          target: 'enemyPitcher',
+          type: 'debuff',
+          stat: actionToExecute.stat,
+          value: actionToExecute.value,
+          duration: actionToExecute.duration
+        });
+        return { success: true, description: actionToExecute.description };
+      
+      default:
+        return { success: false, reason: '未知的動作類型' };
+    }
+  }
+
+  // === 高級效果處理器 ===
+
+  handleCopyStats(effectData, card) {
+    if (!this.checkCondition(effectData.condition, card)) {
+      return { success: false, reason: '條件不符' };
+    }
+
+    // 找到祥子
+    const saki = this.state.bases.find(base => base && base.name.includes('祥子'));
+    if (!saki) {
+      return { success: false, reason: '找不到祥子' };
+    }
+
+    // 複製祥子的數值（包含永久加成）
+    const sakiStats = this.calculateTotalStats(saki);
+    
+    // 為初華設置臨時數值
+    card.tempBonus = card.tempBonus || {};
+    Object.keys(sakiStats).forEach(stat => {
+      card.tempBonus[stat] = sakiStats[stat] - (card.stats[stat] || 0);
+    });
+
+    return {
+      success: true,
+      description: `${card.name} 複製了祥子的所有數值！`
+    };
+  }
+
+  handleDeckPeek(effectData, card) {
+    const peekCount = effectData.value || 3;
+    const topCards = this.state.player.deck.slice(-peekCount);
+    
+    // 這裡應該有UI讓玩家重新排列，暫時只是記錄
+    console.log(`🔍 ${card.name} 檢視了牌庫頂的 ${peekCount} 張牌:`, topCards.map(c => c.name));
+    
+    return {
+      success: true,
+      description: `${card.name} 檢視並重新排列了牌庫頂的 ${peekCount} 張牌`
+    };
+  }
+
+  handlePowerTransfer(effectData, card) {
+    // 永久力量轉移（死聲效果）
+    const targetName = effectData.target;
+    const stat = effectData.stat;
+    const value = effectData.value;
+
+    // 記錄永久效果
+    if (!this.permanentEffects.has(targetName)) {
+      this.permanentEffects.set(targetName, {});
+    }
+
+    const targetEffects = this.permanentEffects.get(targetName);
+    if (stat === 'allStats') {
+      ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
+        targetEffects[s] = (targetEffects[s] || 0) + value;
+      });
+    } else {
+      targetEffects[stat] = (targetEffects[stat] || 0) + value;
+    }
+
+    // 如果目標角色在場上，立即應用效果
+    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+      if (targetCard && this.isTargetCard(targetCard, targetName)) {
+        targetCard.permanentBonus = targetCard.permanentBonus || {};
+        if (stat === 'allStats') {
+          ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
+            targetCard.permanentBonus[s] = (targetCard.permanentBonus[s] || 0) + value;
+          });
+        } else {
+          targetCard.permanentBonus[stat] = (targetCard.permanentBonus[stat] || 0) + value;
+        }
+      }
+    });
+
+    return {
+      success: true,
+      description: `${card.name} 為 ${targetName} 永久增加了 ${stat}+${value}`
+    };
+  }
+
+  handleTargetSpecific(effectData, card) {
+    const targetName = effectData.target;
+    
+    // 找到指定角色
+    const targets = [...this.state.player.hand, ...this.state.bases.filter(Boolean)].filter(c => 
+      this.isTargetCard(c, targetName)
+    );
+
+    if (targets.length === 0) {
+      return { success: false, reason: `找不到 ${targetName}` };
+    }
+
+    // 對所有找到的目標應用效果
+    targets.forEach(target => {
+      target.tempBonus = target.tempBonus || {};
+      if (effectData.stat === 'allStats') {
+        ['power', 'hitRate', 'contact', 'speed'].forEach(stat => {
+          target.tempBonus[stat] = (target.tempBonus[stat] || 0) + effectData.value;
+        });
+      } else {
+        target.tempBonus[effectData.stat] = (target.tempBonus[effectData.stat] || 0) + effectData.value;
+      }
+    });
+
+    // 執行獎勵效果
+    if (effectData.bonusEffect && effectData.bonusEffect.keyword === 'draw') {
+      this.drawCards(this.state.player, effectData.bonusEffect.value);
+    }
+
+    return {
+      success: true,
+      description: `強化了 ${targets.length} 張 ${targetName} 卡，並 ${effectData.bonusEffect ? '抽了一張卡' : ''}`
+    };
+  }
+
+  handleDoubleBonus(effectData, card) {
+    // 祥子的"世界的中心"效果
+    const permanentBonus = card.permanentBonus || {};
+    card.tempBonus = card.tempBonus || {};
+    
+    // 將永久加成再次添加為臨時加成
+    Object.keys(permanentBonus).forEach(stat => {
+      card.tempBonus[stat] = (card.tempBonus[stat] || 0) + permanentBonus[stat];
+    });
+
+    return {
+      success: true,
+      description: `${card.name} 的永久加成再次生效！`
+    };
+  }
+
+  // === 戰術卡特殊效果處理器 ===
+
+  handleDiscardDraw(effectData, card) {
+    if (this.state.player.hand.length < effectData.discardCount) {
+      return { success: false, reason: '手牌不足' };
+    }
+
+    // 棄牌
+    for (let i = 0; i < effectData.discardCount; i++) {
+      const discarded = this.state.player.hand.pop();
+      this.state.player.discard.push(discarded);
+    }
+
+    // 抽牌
+    this.drawCards(this.state.player, effectData.drawCount);
+
+    return {
+      success: true,
+      description: `棄了 ${effectData.discardCount} 張牌，抽了 ${effectData.drawCount} 張牌`
+    };
+  }
+
+  handleSacrificeDebuff(effectData, card) {
+    // 檢查代價
+    if (this.state.player.hand.length < effectData.cost.count) {
+      return { success: false, reason: '手牌不足以支付代價' };
+    }
+
+    // 支付代價
+    for (let i = 0; i < effectData.cost.count; i++) {
+      const discarded = this.state.player.hand.pop();
+      this.state.player.discard.push(discarded);
+    }
+
+    // 對敵方投手施加減益
+    this.addActiveEffect({
+      source: card.name,
+      target: 'enemyPitcher',
+      type: 'debuff',
+      stat: 'allStats',
+      value: effectData.value,
+      duration: effectData.duration
+    });
+
+    return {
+      success: true,
+      description: `犧牲了手牌，對方投手所有數值${effectData.value}直到下回合！`
+    };
+  }
+
+  handleDeckCycle(effectData, card) {
+    if (this.state.player.hand.length === 0) {
+      return { success: false, reason: '手牌為空' };
+    }
+
+    // 將手牌放回牌庫底
+    for (let i = 0; i < effectData.putBackCount && this.state.player.hand.length > 0; i++) {
+      const putBack = this.state.player.hand.pop();
+      this.state.player.deck.unshift(putBack); // 放到牌庫底
+    }
+
+    // 抽牌
+    this.drawCards(this.state.player, effectData.drawCount);
+
+    return {
+      success: true,
+      description: `放回了 ${effectData.putBackCount} 張牌到牌庫底，抽了 ${effectData.drawCount} 張牌`
+    };
+  }
+
+  handlePowerBoost(effectData, card) {
+    // 為當前打者添加臨時力量加成
+    const currentBatter = this.getCurrentBatter();
+    if (!currentBatter) {
+      return { success: false, reason: '沒有當前打者' };
+    }
+
+    currentBatter.tempBonus = currentBatter.tempBonus || {};
+    currentBatter.tempBonus[effectData.stat] = (currentBatter.tempBonus[effectData.stat] || 0) + effectData.value;
+
+    return {
+      success: true,
+      description: `${currentBatter.name} 本次打擊 ${effectData.stat}+${effectData.value}！`
+    };
+  }
+
+  handleDrawBaseOnMyGO(effectData, card) {
+    const baseCount = effectData.baseValue || 1;
+    const mygoCount = this.state.bases.filter(base => base && base.band === 'MyGO!!!!!').length;
+    const bonusDraw = Math.min(mygoCount * (effectData.bonusPerMyGO || 1), effectData.maxBonus || 3);
+    const totalDraw = baseCount + bonusDraw;
+
+    this.drawCards(this.state.player, totalDraw);
+
+    return {
+      success: true,
+      description: `抽了 ${baseCount} 張基礎牌 + ${bonusDraw} 張額外牌 (共 ${totalDraw} 張)`
+    };
+  }
+
+  handleTargetBuff(effectData, card) {
+    // 立希的效果：選擇手牌中的MyGO!!!!!角色進行強化
+    const mygoCards = this.state.player.hand.filter(handCard => 
+      handCard.type === 'batter' && handCard.band === 'MyGO!!!!!'
+    );
+
+    if (mygoCards.length === 0) {
+      return { success: false, reason: '手牌中沒有MyGO!!!!!角色' };
+    }
+
+    // 簡化版：選擇第一張MyGO!!!!!角色
+    const targetCard = mygoCards[0];
+    
+    // 為下次打出設置加成
+    this.nextCardBuffs.push({
+      cardName: targetCard.name,
+      stat: effectData.stat,
+      value: effectData.value,
+      duration: effectData.duration
+    });
+
+    return {
+      success: true,
+      description: `${targetCard.name} 下次打出時將獲得 ${effectData.stat}+${effectData.value}！`
+    };
+  }
+
+  handleMaxStats(effectData, card) {
+    const currentBatter = this.getCurrentBatter();
+    if (!currentBatter) {
+      return { success: false, reason: '沒有當前打者' };
+    }
+
+    // 設置最大數值
+    currentBatter.tempBonus = currentBatter.tempBonus || {};
+    Object.keys(effectData.stats).forEach(stat => {
+      const targetValue = effectData.stats[stat];
+      const currentValue = currentBatter.stats[stat] + (currentBatter.tempBonus[stat] || 0);
+      if (currentValue < targetValue) {
+        currentBatter.tempBonus[stat] = targetValue - currentBatter.stats[stat];
+      }
+    });
+
+    return {
+      success: true,
+      description: `${currentBatter.name} 本次打擊數值設為最大值！`
+    };
+  }
+
+  // === 輔助方法 ===
+
+  addActiveEffect(effect) {
+    this.state.activeEffects.push(effect);
+  }
+
+  getTargets(targetType, sourceCard) {
+    switch (targetType) {
+      case TARGET_TYPES.SELF:
+        return [sourceCard];
+      case TARGET_TYPES.ALL_ON_BASE:
+        return this.state.bases.filter(Boolean);
+      case TARGET_TYPES.ALL_FRIENDLY:
+        return [...this.state.player.hand, ...this.state.bases.filter(Boolean)];
+      case TARGET_TYPES.ALL_MYGO_BATTERS:
+        return [...this.state.player.hand, ...this.state.bases.filter(Boolean)]
+          .filter(card => card.band === 'MyGO!!!!!' && card.type === 'batter');
+      case TARGET_TYPES.CURRENT_BATTER:
+        return [this.getCurrentBatter()].filter(Boolean);
+      default:
+        return [];
+    }
+  }
+
+  getCurrentBatter() {
+    // 返回當前選中的打者或正在打擊區的打者
+    if (this.state.selected !== -1 && this.state.player.hand[this.state.selected]) {
+      return this.state.player.hand[this.state.selected];
+    }
+    return null;
+  }
+
+  isTargetCard(card, targetName) {
+    // 檢查卡牌是否為指定目標
+    switch (targetName) {
+      case 'rana':
+      case '樂奈':
+        return card.name.includes('樂奈');
+      case 'mortis':
+      case 'Mortis':
+        return card.name === 'Mortis';
+      case 'mutsuki':
+      case '睦':
+        return card.name.includes('睦');
+      case 'uika':
+      case '初華':
+        return card.name.includes('初華');
+      case 'mana':
+      case '真奈':
+        return card.name.includes('真奈');
+      default:
+        return card.name.includes(targetName);
+    }
+  }
+
+  calculateTotalStats(card) {
+    const baseStats = { ...card.stats };
+    const permanentBonus = card.permanentBonus || {};
+    const tempBonus = card.tempBonus || {};
+
+    const totalStats = {};
+    Object.keys(baseStats).forEach(stat => {
+      totalStats[stat] = baseStats[stat] + (permanentBonus[stat] || 0) + (tempBonus[stat] || 0);
+    });
+
+    return totalStats;
+  }
+
+  drawCards(player, count) {
+    for (let i = 0; i < count; i++) {
+      if (player.deck.length === 0) {
+        if (player.discard.length === 0) break;
+        player.deck = [...player.discard];
+        player.discard = [];
+        this.shuffleDeck(player.deck);
+      }
+      if (player.deck.length > 0) {
+        player.hand.push(player.deck.pop());
+      }
+    }
+  }
+
+  shuffleDeck(deck) {
+    for (let i = deck.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [deck[i], deck[j]] = [deck[j], deck[i]];
+    }
+  }
+
+  // === 舊版本兼容性方法 ===
   
   handleBuff(effectData, card) {
     const targets = this.getTargets(effectData.target, card);
@@ -289,7 +745,7 @@ export class EffectProcessor {
   handleDebuff(effectData, card) {
     const targets = this.getTargets(effectData.target, card);
     const stat = effectData.stat;
-    const value = -Math.abs(effectData.value); // 確保是負值
+    const value = -Math.abs(effectData.value);
     const duration = effectData.duration || DURATIONS.TURN;
     
     targets.forEach(target => {
@@ -298,33 +754,25 @@ export class EffectProcessor {
         target: target,
         type: 'debuff',
         stat: stat,
-        value: value,
+        value: value, // 補上 value
         duration: duration
-      });
-    });
-    
+      }); // 補上 }
+    }); // 補上 )
+
     return { 
       success: true, 
       description: `${card.name} 為目標施加了 ${stat}${value} 的減益` 
     };
-  }
+  } // 補上 }
 
   handleSetTo(effectData, card) {
     const targets = this.getTargets(effectData.target, card);
     const stat = effectData.stat;
     const value = effectData.value;
-    const duration = effectData.duration || DURATIONS.TURN;
     
     targets.forEach(target => {
-      this.addActiveEffect({
-        source: card.name,
-        target: target,
-        type: 'setTo',
-        stat: stat,
-        value: value,
-        duration: duration,
-        mode: 'absolute'
-      });
+      // 這裡可以直接修改角色的基礎數值，或添加一個絕對值的臨時效果
+      target.stats[stat] = value;
     });
     
     return { 
@@ -333,230 +781,55 @@ export class EffectProcessor {
     };
   }
 
-  // === 特殊效果處理器 ===
+  // === 狀態效果處理器 ===
   
   handleLock(effectData, card) {
-    if (effectData.action === 'lockCharacter') {
-      // 選擇壘上的角色進行鎖定
-      const baseIndex = this.chooseFromBases();
-      if (baseIndex !== -1 && this.state.bases[baseIndex]) {
-        const lockedCard = this.state.bases[baseIndex];
-        lockedCard.locked = true;
-        return { 
-          success: true, 
-          description: `${lockedCard.name} 被鎖定了，將永遠留在 ${baseIndex + 1} 壘` 
-        };
-      }
-    }
-    return { success: false, reason: '沒有可鎖定的目標' };
+    const targets = this.getTargets(effectData.target, card);
+    targets.forEach(target => {
+      target.locked = true; 
+    });
+    return { success: true, description: `${targets.map(t => t.name).join(', ')} 被鎖定了！` };
+  }
+
+  handleImmune(effectData, card) {
+    const targets = this.getTargets(effectData.target, card);
+    targets.forEach(target => {
+      target.immune = true;
+    });
+    return { success: true, description: `${targets.map(t => t.name).join(', ')} 變得免疫！` };
+  }
+
+  handleUntargetable(effectData, card) {
+    const targets = this.getTargets(effectData.target, card);
+    targets.forEach(target => {
+      target.untargetable = true;
+    });
+    return { success: true, description: `${targets.map(t => t.name).join(', ')} 變得無法被指定！` };
+  }
+
+  // === 特殊效果處理器 ===
+
+  handleCopy(effectData, card) {
+    // 複製效果的邏輯，可能需要更複雜的實現
+    return { success: true, description: `複製效果待實現` };
   }
 
   handleDestroy(effectData, card) {
-    if (effectData.action === 'destroyAllBasesForPermanentPower') {
-      const destroyedCount = this.state.bases.filter(Boolean).length;
-      
-      // 清空所有壘包
-      this.state.bases = [null, null, null];
-      
-      // 為牌庫中所有打者永久增加力量
-      this.state.player.deck.forEach(deckCard => {
-        if (deckCard.type === 'batter') {
-          deckCard.stats.power += destroyedCount * 10;
-        }
-      });
-      
-      return { 
-        success: true, 
-        description: `解散樂隊！摧毀了 ${destroyedCount} 名角色，所有打者力量永久+${destroyedCount * 10}` 
-      };
-    }
-    return { success: false, reason: '無法執行摧毀效果' };
+    const targets = this.getTargets(effectData.target, card);
+    // 摧毀邏輯，例如將卡牌從壘上移至棄牌堆
+    targets.forEach(target => {
+      const baseIndex = this.state.bases.findIndex(b => b === target);
+      if (baseIndex !== -1) {
+        this.state.player.discard.push(this.state.bases[baseIndex]);
+        this.state.bases[baseIndex] = null;
+      }
+    });
+    return { success: true, description: `摧毀了 ${targets.map(t => t.name).join(', ')}！` };
   }
 
   handleSacrifice(effectData, card) {
-    if (effectData.action === 'sacrificeForGodhood') {
-      // 從手牌中棄掉一張MyGO成員
-      const mygoCardIndex = this.state.player.hand.findIndex(c => c.band === 'MyGO!!!!!');
-      if (mygoCardIndex === -1) {
-        return { success: false, reason: '手牌中沒有MyGO!!!!!成員' };
-      }
-      
-      const sacrificed = this.state.player.hand.splice(mygoCardIndex, 1)[0];
-      this.state.player.discard.push(sacrificed);
-      
-      // 為所有祥子卡永久增加力量
-      const powerBoost = effectData.value || 20;
-      [...this.state.player.deck, ...this.state.player.hand, ...this.state.player.discard]
-        .filter(c => c.name.includes('祥子'))
-        .forEach(sakiCard => {
-          sakiCard.stats.power += powerBoost;
-        });
-      
-      return { 
-        success: true, 
-        description: `${card.name} 犧牲了 ${sacrificed.name}，祥子的力量永久+${powerBoost}！` 
-      };
-    }
-    return { success: false, reason: '無法執行犧牲效果' };
+    // 犧牲邏輯，例如從手牌棄置
+    // 這個關鍵字的主要邏輯在卡牌效果本身，而非通用處理器
+    return { success: true, description: `犧牲效果已在卡牌中處理` };
   }
-
-  // === 輔助方法 ===
-  
-  getTargets(targetType, sourceCard) {
-    switch (targetType) {
-      case TARGET_TYPES.SELF:
-        return [sourceCard];
-      case TARGET_TYPES.ALL_ON_BASE:
-        return this.state.bases.filter(Boolean);
-      case TARGET_TYPES.ALL_FRIENDLY:
-        return [...this.state.player.hand, ...this.state.bases.filter(Boolean)];
-      case 'allMyGOMembers':
-        return this.state.bases.filter(base => base && base.band === 'MyGO!!!!!');
-      case 'allMyGOOnBase':
-        return this.state.bases.filter(base => base && base.band === 'MyGO!!!!!');
-      case 'allGuitarists':
-        return [...this.state.player.hand, ...this.state.bases.filter(Boolean)]
-          .filter(card => card.instrument === 'Guitar');
-      default:
-        return [];
-    }
-  }
-
-  addActiveEffect(effect) {
-    this.state.activeEffects.push(effect);
-  }
-
-  chooseFromBases() {
-    // 簡化版選擇邏輯，實際應該有UI讓玩家選擇
-    return this.state.bases.findIndex(Boolean);
-  }
-
-  drawCards(player, count) {
-    for (let i = 0; i < count; i++) {
-      if (player.deck.length === 0) {
-        if (player.discard.length === 0) break;
-        player.deck = [...player.discard];
-        player.discard = [];
-        this.shuffleDeck(player.deck);
-      }
-      if (player.deck.length > 0) {
-        player.hand.push(player.deck.pop());
-      }
-    }
-  }
-
-  shuffleDeck(deck) {
-    for (let i = deck.length - 1; i > 0; i--) {
-      const j = Math.floor(Math.random() * (i + 1));
-      [deck[i], deck[j]] = [deck[j], deck[i]];
-    }
-  }
-}
-
-// === 效果註冊系統 ===
-// 這允許不同主題包註冊自己的特殊效果
-
-export class EffectRegistry {
-  constructor() {
-    this.customEffects = new Map();
-  }
-
-  /**
-   * 註冊主題包特有的效果
-   * @param {string} effectName - 效果名稱
-   * @param {Function} handler - 處理函式
-   * @param {string} theme - 主題包名稱
-   */
-  registerThemeEffect(effectName, handler, theme = 'default') {
-    const key = `${theme}:${effectName}`;
-    this.customEffects.set(key, handler);
-    console.log(`註冊主題效果: ${key}`);
-  }
-
-  /**
-   * 獲取主題效果處理器
-   */
-  getThemeEffect(effectName, theme = 'default') {
-    const key = `${theme}:${effectName}`;
-    return this.customEffects.get(key);
-  }
-
-  /**
-   * 列出所有已註冊的效果
-   */
-  listEffects() {
-    return Array.from(this.customEffects.keys());
-  }
-}
-
-// 全域效果註冊器實例
-export const effectRegistry = new EffectRegistry();
-
-// === MyGO!!!!! 主題效果註冊 ===
-effectRegistry.registerThemeEffect('copyGuitaristSynergy', (effectData, card, processor) => {
-  const guitarists = processor.state.bases.filter(base => 
-    base && base.instrument === 'Guitar' && base.name !== card.name
-  );
-  
-  if (guitarists.length > 0) {
-    const randomGuitarist = guitarists[Math.floor(Math.random() * guitarists.length)];
-    const synergyEffect = randomGuitarist.effects?.synergy;
-    
-    if (synergyEffect) {
-      // 複製該吉他手的協同效果
-      processor.addActiveEffect({
-        source: card.name,
-        target: card,
-        type: 'copied',
-        originalEffect: synergyEffect,
-        duration: 'turn'
-      });
-      
-      return {
-        success: true,
-        description: `${card.name} 複製了 ${randomGuitarist.name} 的羁絆效果`
-      };
-    }
-  }
-  
-  return { success: false, reason: '場上沒有其他吉他手可複製' };
-}, 'MyGO');
-
-effectRegistry.registerThemeEffect('soloistBoost', (effectData, card, processor) => {
-  // 讓玩家選擇手牌中的一張卡（這裡簡化為選第一張）
-  const chosenIndex = 0; // 實際應該有UI讓玩家選擇
-  const chosenCard = processor.state.player.hand[chosenIndex];
-  
-  if (!chosenCard) {
-    return { success: false, reason: '手牌為空' };
-  }
-  
-  // 給選中的卡牌+40力量
-  processor.addActiveEffect({
-    source: card.name,
-    target: chosenCard,
-    type: 'buff',
-    stat: 'power',
-    value: 40,
-    duration: 'turn'
-  });
-  
-  // 給其他手牌-20專注
-  processor.state.player.hand.forEach((handCard, index) => {
-    if (index !== chosenIndex) {
-      processor.addActiveEffect({
-        source: card.name,
-        target: handCard,
-        type: 'debuff',
-        stat: 'contact',
-        value: -20,
-        duration: 'turn'
-      });
-    }
-  });
-  
-  return {
-    success: true,
-    description: `${chosenCard.name} 成為了獨奏者(力量+40)，但其他成員專注-20`
-  };
-}, 'MyGO');
+} // 補上 EffectProcessor class 的結尾 }

@@ -1,24 +1,26 @@
-// src/main.js - 綜合修復版本
-console.log('🎮 MyGO!!!!! TCG 主檔案載入中...');
+// src/main.js - Enhanced with new card effects system
+console.log('🎸 MyGO!!!!! TCG Enhanced Edition 載入中...');
 
-let CONFIG, TEAMS, createGameState, render;
+let CONFIG, TEAMS, createGameState, render, EffectProcessor, effectRegistry;
 let gameInitialized = false;
 let draggedCard = null;
 let draggedCardIndex = -1;
 let awaitingTargetSelection = false;
 let pendingActionCard = null;
-// 🆕 新增：全域遊戲狀態引用，供 UI 模組使用
 let currentGameState = null;
 let currentHandlers = null;
+let effectProcessor = null; // 🆕 新增：效果處理器實例
+
 // 🆕 新增：暴露到 window 物件供跨模組使用
 window.awaitingTargetSelection = false;
 window.pendingActionCard = null;
 window.gameState = null;
 window.handleHandCardSelection = null;
+window.effectProcessor = null;
 
 async function initializeGame() {
   try {
-    console.log('📦 開始載入遊戲模組...');
+    console.log('📦 開始載入增強版遊戲模組...');
     
     const configModule = await import('./data/config.js');
     CONFIG = configModule.CONFIG;
@@ -26,11 +28,17 @@ async function initializeGame() {
     
     const teamsModule = await import('./data/teams.js');
     TEAMS = teamsModule.TEAMS;
-    console.log('✅ Teams 載入成功:', TEAMS.length, '個隊伍');
+    console.log('✅ Enhanced Teams 載入成功:', TEAMS.length, '個隊伍');
     
     const gameStateModule = await import('./engine/game_state.js');
     createGameState = gameStateModule.createGameState;
     console.log('✅ Game State 載入成功');
+    
+    // 🆕 新增：載入增強效果系統
+    const effectsModule = await import('./engine/effects.js');
+    EffectProcessor = effectsModule.EffectProcessor;
+    effectRegistry = effectsModule.effectRegistry;
+    console.log('✅ Enhanced Effects System 載入成功');
     
     const uiModule = await import('./ui/ui.js');
     render = uiModule.render;
@@ -50,11 +58,16 @@ async function initializeGame() {
 
 function startGame() {
   try {
-    console.log('🎯 開始初始化遊戲...');
+    console.log('🎯 開始初始化增強版遊戲...');
     
     const state = createGameState();
     currentGameState = state;
     window.gameState = state;
+    
+    // 🆕 新增：初始化效果處理器
+    effectProcessor = new EffectProcessor(state);
+    window.effectProcessor = effectProcessor;
+    console.log('✅ 效果處理器初始化完成');
     
     console.log('✅ 遊戲狀態創建成功');
     
@@ -119,12 +132,12 @@ function startGame() {
       mainButton.onclick = handlers.button;
     }
     
-    console.log('🎉 遊戲初始化完成！');
+    console.log('🎉 增強版遊戲初始化完成！');
     gameInitialized = true;
     
     const outcomeText = document.getElementById('outcome-text');
     if (outcomeText) {
-      outcomeText.textContent = '🎸 MyGO!!!!! 準備就緒！點擊 Play Ball 開始遊戲！';
+      outcomeText.textContent = '🎸 MyGO!!!!! Enhanced Edition 準備就緒！點擊 Play Ball 開始遊戲！';
     }
     
   } catch (error) {
@@ -133,12 +146,9 @@ function startGame() {
   }
 }
 
-// 🔧 修改：setupDragDropZones 函數 - 擴大拖拽區域到整個中央場地
 function setupDragDropZones(handlers) {
-  // 🆕 新增：對整個中央場地設置拖拽
   const centerField = document.querySelector('.center-field');
   if (centerField) {
-    // 清除舊的事件監聽器
     centerField.replaceWith(centerField.cloneNode(true));
     const newCenterField = document.querySelector('.center-field');
     
@@ -146,7 +156,6 @@ function setupDragDropZones(handlers) {
       e.preventDefault();
       newCenterField.classList.add('drag-over');
       
-      // 更新拖拽提示
       const dropHint = document.getElementById('drop-hint');
       if (dropHint) {
         dropHint.classList.add('active');
@@ -155,7 +164,6 @@ function setupDragDropZones(handlers) {
     });
     
     newCenterField.addEventListener('dragleave', (e) => {
-      // 只有當滑鼠真正離開中央區域時才移除樣式
       if (!newCenterField.contains(e.relatedTarget)) {
         newCenterField.classList.remove('drag-over');
         
@@ -183,7 +191,6 @@ function setupDragDropZones(handlers) {
       }
     });
     
-    // 右鍵取消
     newCenterField.addEventListener('contextmenu', (e) => {
       e.preventDefault();
       if (window.awaitingTargetSelection) {
@@ -191,37 +198,11 @@ function setupDragDropZones(handlers) {
       }
     });
   }
-  
-  // 保留舊的打擊區域功能（如果還存在）
-  const batterZone = document.getElementById('batter-zone');
-  if (batterZone) {
-    batterZone.addEventListener('dragover', (e) => {
-      e.preventDefault();
-      batterZone.classList.add('drag-over');
-    });
-    
-    batterZone.addEventListener('dragleave', (e) => {
-      if (!batterZone.contains(e.relatedTarget)) {
-        batterZone.classList.remove('drag-over');
-      }
-    });
-    
-    batterZone.addEventListener('drop', (e) => {
-      e.preventDefault();
-      batterZone.classList.remove('drag-over');
-      
-      const cardIndex = parseInt(e.dataTransfer.getData('text/plain'));
-      if (cardIndex !== -1 && !isNaN(cardIndex)) {
-        console.log('🎯 拖拽到打擊區:', cardIndex);
-        handlers.dragToBatter(cardIndex);
-      }
-    });
-  }
 }
 
 function initDecks(state, handlers) {
   try {
-    console.log('🎯 初始化牌組...');
+    console.log('🎯 初始化增強版牌組...');
     
     const playerTeam = TEAMS.find(team => team.id === "MGO");
     state.player.team = playerTeam;
@@ -237,14 +218,14 @@ function initDecks(state, handlers) {
     state.cpu.deck = [...cpuTeam.batters].map(prepareCard);
     state.cpu.activePitcher = prepareCard(cpuTeam.pitchers[0]);
     
-    console.log('✅ 牌組初始化完成');
+    console.log('✅ 增強版牌組初始化完成');
     console.log('  - 玩家手牌:', state.player.hand.length, '張');
     console.log('  - 玩家牌組:', state.player.deck.length, '張');
     console.log('  - CPU牌組:', state.cpu.deck.length, '張');
     
     const outcomeText = document.getElementById('outcome-text');
     if (outcomeText) {
-      outcomeText.textContent = '🎵 MyGO!!!!! vs Yankees - 客隊先攻！';
+      outcomeText.textContent = '🎵 MyGO!!!!! vs Yankees - 客隊先攻！準備感受新效果的威力！';
     }
     
     setTimeout(() => {
@@ -257,7 +238,7 @@ function initDecks(state, handlers) {
   }
 }
 
-// 🔧 修改：runPlayerTurn 函數 - 添加歷史記錄
+// 🔧 修改：runPlayerTurn 函數 - 整合新效果系統
 function runPlayerTurn(state, handlers) {
   try {
     const card = state.player.hand[state.selected];
@@ -266,52 +247,46 @@ function runPlayerTurn(state, handlers) {
       return;
     }
     
-    console.log('🎯 玩家回合:', card.name, '類型:', card.type);
+    console.log('🎯 增強版玩家回合:', card.name, '類型:', card.type, '位置:', card.position);
     
     if (card.type === 'batter') {
-      // 打者卡：進行打擊
-      const result = simulateSimpleAtBat(card, state.cpu.activePitcher);
-      processSimpleOutcome(result, state, card);
-      
-      const outcomeText = document.getElementById('outcome-text');
-      if (outcomeText) {
-        outcomeText.textContent = result.description;
+      // 🆕 新增：應用預設加成和永久效果
+      if (effectProcessor) {
+        effectProcessor.applyNextCardBuffs(card);
+        effectProcessor.applyPermanentEffects(card);
       }
       
-      // 🆕 新增：記錄玩家行動
-      if (window.addGameHistory) {
-        window.addGameHistory('playerTurn', {
-          player: card.name,
-          result: result.description,
-          points: result.points || 0,
-          type: result.type
-        });
+      // 🆕 新增：處理戰吼效果
+      if (card.effects && card.effects.play && effectProcessor) {
+        console.log('🎭 處理戰吼效果:', card.name);
+        const battlecryResult = effectProcessor.processBattlecry(card);
+        if (battlecryResult.success) {
+          console.log('✅ 戰吼效果成功:', battlecryResult.description);
+          updateOutcomeText(`${card.name}: ${battlecryResult.description}`);
+          
+          // 給玩家時間看效果
+          setTimeout(() => {
+            // 然後進行打擊
+            proceedWithAtBat(card, state, handlers);
+          }, 1500);
+          return;
+        } else {
+          console.log('❌ 戰吼效果失敗:', battlecryResult.reason);
+        }
       }
       
-      // 移除卡牌
-      console.log('🗑️ 移除打者卡:', card.name);
-      removeCardFromHand(state, state.selected);
-      
-      // 檢查手牌上限再抽牌
-      if (state.player.hand.length < 7) {
-        const drawCount = Math.min(2, 7 - state.player.hand.length);
-        console.log('🎴 抽取新牌:', drawCount, '張');
-        draw(state.player, drawCount);
-      } else {
-        console.log('⚠️ 手牌已達上限，不抽牌');
-      }
+      // 直接進行打擊
+      proceedWithAtBat(card, state, handlers);
       
     } else if (card.type === 'action') {
       // 戰術卡：檢查是否需要選擇目標
       if (needsTargetSelection(card)) {
         startTargetSelection(card, state, handlers);
-        return; // 等待目標選擇，不移除卡牌
+        return;
       } else {
-        // 直接執行戰術卡
         console.log('🎭 執行戰術卡:', card.name);
         executeActionCard(card, state);
         
-        // 🆕 新增：記錄戰術卡使用
         if (window.addGameHistory) {
           window.addGameHistory('actionCard', {
             player: '玩家',
@@ -319,7 +294,6 @@ function runPlayerTurn(state, handlers) {
           });
         }
         
-        // 移除戰術卡（戰術卡不抽牌）
         console.log('🗑️ 移除戰術卡:', card.name);
         removeCardFromHand(state, state.selected);
       }
@@ -329,11 +303,14 @@ function runPlayerTurn(state, handlers) {
     state.selected = -1;
     console.log('✅ 玩家回合完成，手牌數量:', state.player.hand.length);
     
-    // 重新渲染以更新UI
+    // 🆕 新增：處理羈絆效果
+    if (effectProcessor) {
+      processAllSynergyEffects(state);
+    }
+    
     render(state, handlers);
     
     if (state.outs >= 3) {
-      // 🆕 新增：記錄半局結束
       if (window.addGameHistory) {
         window.addGameHistory('endInning', {
           inning: `${state.currentInning}局${state.half}`,
@@ -350,6 +327,133 @@ function runPlayerTurn(state, handlers) {
   }
 }
 
+// 🆕 新增：分離的打擊處理函數
+function proceedWithAtBat(card, state, handlers) {
+  // 進行打擊模擬
+  const result = simulateEnhancedAtBat(card, state.cpu.activePitcher, state);
+  processSimpleOutcome(result, state, card);
+  
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = result.description;
+  }
+  
+  if (window.addGameHistory) {
+    window.addGameHistory('playerTurn', {
+      player: card.name,
+      result: result.description,
+      points: result.points || 0,
+      type: result.type
+    });
+  }
+  
+  console.log('🗑️ 移除打者卡:', card.name);
+  removeCardFromHand(state, state.selected);
+  
+  // 檢查手牌上限再抽牌
+  if (state.player.hand.length < 7) {
+    const drawCount = Math.min(2, 7 - state.player.hand.length);
+    console.log('🎴 抽取新牌:', drawCount, '張');
+    draw(state.player, drawCount);
+  } else {
+    console.log('⚠️ 手牌已達上限，不抽牌');
+  }
+}
+
+// 🆕 新增：增強版打擊模擬
+function simulateEnhancedAtBat(batter, pitcher, state) {
+  // 計算最終數值（包含所有加成）
+  const finalBatterStats = calculateFinalStats(batter);
+  const finalPitcherStats = calculateFinalStats(pitcher);
+  
+  console.log('⚾ 增強版打擊模擬:');
+  console.log('  打者:', batter.name, finalBatterStats);
+  console.log('  投手:', pitcher.name, finalPitcherStats);
+  
+  // 使用最終數值進行模擬
+  const { norm } = CONFIG;
+  const base = { K: 0.2, BB: 0.08, HR: 0.05, H: 0.25 };
+
+  let pK = base.K + (finalPitcherStats.power - 75) * norm.pitcherPowerSO
+                 - (finalBatterStats.contact - 75) * norm.batterContactSO;
+  let pBB = base.BB - (finalPitcherStats.control - 75) * norm.controlBB;
+  let pHR = base.HR + (finalBatterStats.power - 75) * norm.batterPowerHR
+                  - (finalPitcherStats.power - 75) * norm.pitcherPowerHR;
+  let pH = base.H + (finalBatterStats.hitRate - 75) * norm.batterHitRate
+                 - (finalPitcherStats.velocity - 75) * norm.velocityHit;
+
+  const r = Math.random();
+  let c = pK;
+  if (r < c) return { type: 'K', description: `${batter.name} 三振出局`, points: 0 };
+  c += pBB;
+  if (r < c) return { type: 'BB', description: `${batter.name} 獲得保送`, points: 1 };
+  c += pHR;
+  if (r < c) return { type: 'HR', description: `全壘打！${batter.name}！`, points: 4 };
+  c += pH;
+  if (r < c) return hitBySpeed(finalBatterStats.speed, state);
+  return { type: 'OUT', description: `${batter.name} 出局`, points: 0 };
+}
+
+// 🆕 新增：計算最終數值
+function calculateFinalStats(card) {
+  const baseStats = { ...card.stats };
+  const permanentBonus = card.permanentBonus || {};
+  const tempBonus = card.tempBonus || {};
+  
+  const finalStats = {};
+  Object.keys(baseStats).forEach(stat => {
+    finalStats[stat] = baseStats[stat] + (permanentBonus[stat] || 0) + (tempBonus[stat] || 0);
+    // 確保數值在合理範圍內
+    finalStats[stat] = Math.max(0, Math.min(200, finalStats[stat]));
+  });
+  
+  return finalStats;
+}
+
+// 🆕 新增：處理所有羈絆效果
+function processAllSynergyEffects(state) {
+  // 檢查壘上角色的羈絆效果
+  state.bases.forEach((card, index) => {
+    if (card && card.effects && card.effects.synergy && effectProcessor) {
+      console.log(`🔗 處理羈絆效果: ${card.name} (${index + 1}壘)`);
+      const synergyResult = effectProcessor.processSynergy(card);
+      if (synergyResult.success) {
+        console.log('✅ 羈絆效果成功:', synergyResult.description);
+      }
+    }
+  });
+  
+  // 檢查特殊協同效果
+  checkSpecialSynergies(state);
+}
+
+// 🆕 新增：檢查特殊協同效果
+function checkSpecialSynergies(state) {
+  const mygoCount = state.bases.filter(base => base && base.band === 'MyGO!!!!!').length;
+  const mujicaCount = state.bases.filter(base => base && base.band === 'Mujica').length;
+  
+  // MyGO!!!!! 3人協同
+  if (mygoCount >= 3) {
+    console.log('🎵 MyGO!!!!! 協同效果觸發！');
+    const tomori = [...state.player.hand, ...state.bases.filter(Boolean)]
+      .find(card => card && card.name.includes('燈'));
+    
+    if (tomori && effectProcessor) {
+      // 為燈增加協同加成
+      tomori.tempBonus = tomori.tempBonus || {};
+      tomori.tempBonus.power = (tomori.tempBonus.power || 0) + 20;
+      console.log('✨ 燈獲得MyGO協同加成: 力量+20');
+    }
+  }
+  
+  // Ave Mujica 3人威壓
+  if (mujicaCount >= 3) {
+    console.log('🖤 Ave Mujica 威壓效果觸發！');
+    // 對手下回合抽卡-1 的效果（需要在CPU回合實作）
+    state.mujicaPressure = true;
+  }
+}
+
 function removeCardFromHand(state, cardIndex) {
   if (cardIndex < 0 || cardIndex >= state.player.hand.length) {
     console.warn('⚠️ 無效的卡牌索引:', cardIndex, '手牌數量:', state.player.hand.length);
@@ -357,12 +461,110 @@ function removeCardFromHand(state, cardIndex) {
   }
   
   const removedCard = state.player.hand.splice(cardIndex, 1)[0];
+  
+  // 🆕 新增：處理死聲效果
+  if (removedCard.effects && removedCard.effects.death && effectProcessor) {
+    console.log('💀 處理死聲效果:', removedCard.name);
+    const deathResult = effectProcessor.processDeathrattle(removedCard);
+    if (deathResult.success) {
+      console.log('✅ 死聲效果成功:', deathResult.description);
+      updateOutcomeText(`${removedCard.name} 的死聲: ${deathResult.description}`);
+    }
+  }
+  
   state.player.discard.push(removedCard);
   
   console.log('🗑️ 成功移除卡牌:', removedCard.name, '→ 棄牌堆');
   console.log('📊 當前狀態 - 手牌:', state.player.hand.length, '棄牌:', state.player.discard.length);
   
   return removedCard;
+}
+
+// 🔧 修改：executeActionCard 函數 - 使用新效果系統
+function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
+  let description = "";
+  
+  // 🆕 新增：使用效果處理器執行戰術卡
+  if (effectProcessor && card.effects && card.effects.play) {
+    console.log('🎭 使用效果處理器執行戰術卡:', card.name);
+    
+    // 如果是需要目標的卡牌，設置目標
+    if (targetCard) {
+      card.effects.play.targetCard = targetCard;
+      card.effects.play.targetIndex = targetIndex;
+    }
+    
+    const result = effectProcessor.processEffect(card, card.effects.play, 'play');
+    if (result.success) {
+      description = result.description;
+    } else {
+      description = `${card.name} 執行失敗: ${result.reason}`;
+    }
+  } else {
+    // 舊版本兼容性處理
+    description = executeActionCardLegacy(card, state, targetCard, targetIndex);
+  }
+  
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = description;
+  }
+  
+  return description;
+}
+
+// 🔧 修改：舊版本戰術卡執行邏輯
+function executeActionCardLegacy(card, state, targetCard = null, targetIndex = -1) {
+  let description = "";
+  
+  switch (card.name) {
+    case '解散樂隊':
+      let destroyedCount = 0;
+      let powerBoost = 0;
+      
+      state.bases.forEach((baseCard, index) => {
+        if (baseCard) {
+          console.log('💥 解散樂隊：移除', baseCard.name);
+          state.player.discard.push(baseCard);
+          destroyedCount++;
+        }
+      });
+      
+      state.bases = [null, null, null];
+      
+      powerBoost = destroyedCount * 5; // 調整為+5 (新設計)
+      
+      if (powerBoost > 0) {
+        [state.player.deck, state.player.hand, state.player.discard].forEach(pile => {
+          pile.forEach(deckCard => {
+            if (deckCard.type === 'batter') {
+              deckCard.permanentBonus = deckCard.permanentBonus || {};
+              ['power', 'hitRate', 'contact', 'speed'].forEach(stat => {
+                deckCard.permanentBonus[stat] = (deckCard.permanentBonus[stat] || 0) + 5;
+              });
+            }
+          });
+        });
+      }
+      
+      description = `解散樂隊！摧毀了 ${destroyedCount} 名角色，所有打者全數值永久+${powerBoost}！`;
+      break;
+      
+    case '一輩子...':
+      if (targetCard) {
+        targetCard.locked = true;
+        description = `${targetCard.name} 被鎖定在 ${targetIndex + 1} 壘上！一輩子...`;
+        console.log('🔒 角色被鎖定:', targetCard.name, '在', targetIndex + 1, '壘');
+      } else {
+        description = `${card.name}: 需要選擇壘上的目標！`;
+      }
+      break;
+      
+    default:
+      description = `${card.name} 戰術卡發動！`;
+  }
+  
+  return description;
 }
 
 function startTargetSelection(card, state, handlers) {
@@ -382,7 +584,6 @@ function startTargetSelection(card, state, handlers) {
   }
   
   highlightValidTargets(card, state);
-  
   setupCancelTargetSelection(state, handlers);
   
   if (handlers && typeof handlers === 'object') {
@@ -444,7 +645,6 @@ function cancelTargetSelection(state, handlers) {
   }
 }
 
-// 🔧 修改：handleHandCardSelection 函數 - 添加歷史記錄
 function handleHandCardSelection(cardIndex, state, handlers) {
   if (!pendingActionCard) {
     console.warn('⚠️ 沒有待處理的戰術卡');
@@ -461,7 +661,6 @@ function handleHandCardSelection(cardIndex, state, handlers) {
   
   executeActionCard(pendingActionCard, state, targetCard, -1);
   
-  // 🆕 新增：記錄手牌目標戰術卡
   if (window.addGameHistory) {
     window.addGameHistory('actionCard', {
       player: '玩家',
@@ -482,7 +681,6 @@ function handleHandCardSelection(cardIndex, state, handlers) {
   }
 }
 
-// 🔧 修改：handleTargetSelection 函數 - 添加歷史記錄
 function handleTargetSelection(baseIndex, state, handlers) {
   if (!pendingActionCard) {
     console.warn('⚠️ 沒有待處理的戰術卡');
@@ -499,7 +697,6 @@ function handleTargetSelection(baseIndex, state, handlers) {
   
   executeActionCard(pendingActionCard, state, targetCard, baseIndex);
   
-  // 🆕 新增：記錄目標選擇戰術卡
   if (window.addGameHistory) {
     window.addGameHistory('actionCard', {
       player: '玩家',
@@ -543,7 +740,7 @@ function resetTargetSelection(state) {
 
 function needsTargetSelection(card) {
   const targetRequiredCards = [
-    '一輩子', 
+    '一輩子...', 
     '想成為人類',
     '滿腦子想著自己'
   ];
@@ -572,7 +769,7 @@ function highlightValidTargets(card, state) {
         }, 100); 
       }
     });
-  } else if (card.name === '一輩子' || card.name === '想成為人類') {
+  } else if (card.name === '一輩子...' || card.name === '想成為人類') {
     state.bases.forEach((baseCard, index) => {
       if (baseCard) {
         const baseIds = ['first-base', 'second-base', 'third-base'];
@@ -590,135 +787,6 @@ function highlightValidTargets(card, state) {
   }
 }
 
-function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
-  let description = "";
-  
-  switch (card.name) {
-    case '解散樂隊':
-      let destroyedCount = 0;
-      let powerBoost = 0;
-      
-      state.bases.forEach((baseCard, index) => {
-        if (baseCard) {
-          console.log('💥 解散樂隊：移除', baseCard.name);
-          state.player.discard.push(baseCard);
-          destroyedCount++;
-        }
-      });
-      
-      state.bases = [null, null, null];
-      
-      powerBoost = destroyedCount * 10;
-      
-      if (powerBoost > 0) {
-        state.player.deck.forEach(deckCard => {
-          if (deckCard.type === 'batter') {
-            deckCard.stats.power += 10;
-          }
-        });
-        state.player.hand.forEach(handCard => {
-          if (handCard.type === 'batter') {
-            handCard.stats.power += 10;
-          }
-        });
-        state.player.discard.forEach(discardCard => {
-          if (discardCard.type === 'batter') {
-            discardCard.stats.power += 10;
-          }
-        });
-      }
-      
-      description = `解散樂隊！摧毀了 ${destroyedCount} 名角色，所有打者力量永久+${powerBoost}！`;
-      break;
-      
-    case '一輩子':
-      if (targetCard) {
-        targetCard.locked = true;
-        description = `${targetCard.name} 被鎖定在 ${targetIndex + 1} 壘上！一輩子...`;
-        console.log('🔒 角色被鎖定:', targetCard.name, '在', targetIndex + 1, '壘');
-      } else {
-        description = `${card.name}: 需要選擇壘上的目標！`;
-      }
-      break;
-      
-    case '滿腦子想著自己':
-      if (targetCard) {
-        targetCard.tempBonus = targetCard.tempBonus || {};
-        targetCard.tempBonus.power = (targetCard.tempBonus.power || 0) + 40;
-        
-        state.player.hand.forEach(handCard => {
-          if (handCard.type === 'batter' && handCard !== targetCard) {
-            handCard.tempBonus = handCard.tempBonus || {};
-            handCard.tempBonus.contact = (handCard.tempBonus.contact || 0) - 20;
-          }
-        });
-        
-        description = `${targetCard.name} 成為獨奏者(力量+40)，其他角色專注-20`;
-        console.log('🎭 滿腦子想著自己:', targetCard.name, '力量+40');
-      } else {
-        description = `${card.name}: 需要選擇手牌中的角色！`;
-      }
-      break;
-      
-    case "It's MyGO!!!!!":
-      let affectedCount = 0;
-      state.bases.forEach(baseCard => {
-        if (baseCard && baseCard.band === 'MyGO!!!!!') {
-          baseCard.tempBonus = baseCard.tempBonus || {};
-          baseCard.tempBonus.power = (baseCard.tempBonus.power || 0) + 15;
-          baseCard.tempBonus.hitRate = (baseCard.tempBonus.hitRate || 0) + 15;
-          baseCard.tempBonus.contact = (baseCard.tempBonus.contact || 0) + 15;
-          baseCard.tempBonus.speed = (baseCard.tempBonus.speed || 0) + 15;
-          affectedCount++;
-        }
-      });
-      description = `It's MyGO!!!!! - ${affectedCount}名成員全數值+15！`;
-      break;
-      
-    case '想成為人類':
-      if (targetCard) {
-        if (targetCard.tempBonus) {
-          Object.keys(targetCard.tempBonus).forEach(stat => {
-            if (targetCard.tempBonus[stat] < 0) {
-              delete targetCard.tempBonus[stat];
-            }
-          });
-        }
-        targetCard.tempBonus = targetCard.tempBonus || {};
-        targetCard.tempBonus.speed = 99;
-        description = `${targetCard.name} 想成為人類！移除負面狀態，速度設為 99！`;
-      } else {
-        description = `${card.name}: 需要選擇目標！`;
-      }
-      break;
-      
-    case '小祥小祥小祥':
-      const sakiCard = state.player.deck.find(deckCard => 
-        deckCard.name && deckCard.name.includes('祥子')
-      );
-      
-      if (sakiCard) {
-        const sakiIndex = state.player.deck.indexOf(sakiCard);
-        state.player.deck.splice(sakiIndex, 1);
-        state.player.hand.push(sakiCard);
-        description = `${card.name}: 找到了祥子！加入手牌。`;
-      } else {
-        draw(state.player, 2);
-        description = `${card.name}: 祥子不在牌庫中，改為抽兩張卡。`;
-      }
-      break;
-      
-    default:
-      description = `${card.name} 戰術卡發動！`;
-  }
-  
-  const outcomeText = document.getElementById('outcome-text');
-  if (outcomeText) {
-    outcomeText.textContent = description;
-  }
-}
-
-// 🔧 修改：runCpuTurn 函數 - 添加歷史記錄
 function runCpuTurn(state, handlers) {
   try {
     console.log('🤖 CPU回合開始');
@@ -727,7 +795,14 @@ function runCpuTurn(state, handlers) {
     let cpuBatterIndex = 0;
     const cpuResults = [];
     
-    // 立即執行所有 CPU 打擊
+    // 🆕 新增：檢查Mujica威壓效果
+    let cpuDrawPenalty = 0;
+    if (state.mujicaPressure) {
+      cpuDrawPenalty = 1;
+      console.log('🖤 Ave Mujica威壓效果：CPU本回合少抽1張牌');
+      state.mujicaPressure = false; // 清除效果
+    }
+    
     while (cpuOuts < 3 && cpuBatterIndex < 20) {
       const batter = state.cpu.deck[cpuBatterIndex % state.cpu.deck.length];
       const result = simulateSimpleAtBat(batter, state.player.pitcher);
@@ -742,22 +817,24 @@ function runCpuTurn(state, handlers) {
       if (result.type === 'K' || result.type === 'OUT') {
         cpuOuts++;
       } else {
-        state.score.away += result.points || 1;
+        state.score.away += Math.max(0, (result.points || 1) - cpuDrawPenalty);
       }
       
       cpuBatterIndex++;
     }
     
-    // 一次性顯示結果摘要
     const totalRuns = cpuResults.reduce((sum, r) => sum + r.points, 0);
     const hits = cpuResults.filter(r => r.points > 0);
     
     const outcomeText = document.getElementById('outcome-text');
     if (outcomeText) {
-      outcomeText.textContent = `CPU回合結束：${totalRuns}分，${hits.length}支安打，${cpuOuts}個出局`;
+      let cpuResultText = `CPU回合結束：${totalRuns}分，${hits.length}支安打，${cpuOuts}個出局`;
+      if (cpuDrawPenalty > 0) {
+        cpuResultText += ` (受Mujica威壓影響)`;
+      }
+      outcomeText.textContent = cpuResultText;
     }
     
-    // 🆕 新增：記錄CPU回合
     if (window.addGameHistory) {
       window.addGameHistory('cpuInning', {
         hits: hits.length,
@@ -771,7 +848,6 @@ function runCpuTurn(state, handlers) {
     
     render(state, handlers);
     
-    // 立即切換到下半局
     setTimeout(() => changeHalfInning(state, handlers), 800);
     
   } catch (error) {
@@ -782,10 +858,16 @@ function runCpuTurn(state, handlers) {
 
 function changeHalfInning(state, handlers) {
   try {
+    // 🆕 新增：清除臨時效果
+    if (effectProcessor) {
+      effectProcessor.cleanupExpiredEffects && effectProcessor.cleanupExpiredEffects(state, 'inning');
+    }
+    
     if (state.half === 'bottom') {
       applyEndOfInningPenalty(state);
     }
     
+    // 清除臨時加成
     state.bases.forEach(baseCard => {
       if (baseCard && baseCard.tempBonus) {
         delete baseCard.tempBonus;
@@ -806,7 +888,7 @@ function changeHalfInning(state, handlers) {
       
       const outcomeText = document.getElementById('outcome-text');
       if (outcomeText) {
-        outcomeText.textContent = '🎵 輪到MyGO!!!!!攻擊！';
+        outcomeText.textContent = '🎵 輪到MyGO!!!!!攻擊！感受新效果的力量！';
       }
       
     } else {
@@ -880,12 +962,21 @@ function processSimpleOutcome(result, state, batterCard) {
 function prepareCard(cardData) {
   const card = { ...cardData };
   
+  // 🆕 新增：初始化加成欄位
+  card.permanentBonus = card.permanentBonus || {};
+  card.tempBonus = card.tempBonus || {};
+  
   if (card.type === 'batter') {
     card.ovr = calculateBatterOVR(card.stats);
   } else if (card.type === 'pitcher') {
     card.ovr = calculatePitcherOVR(card.stats);
   } else if (card.type === 'action') {
     card.ovr = card.rarity || "戰術";
+  }
+  
+  // 🆕 新增：應用永久效果（如果有的話）
+  if (effectProcessor) {
+    effectProcessor.applyPermanentEffects(card);
   }
   
   return card;
@@ -959,6 +1050,12 @@ function draw(player, numToDraw) {
     
     if (player.deck.length > 0) {
       const drawnCard = player.deck.pop();
+      
+      // 🆕 新增：應用永久效果到新抽的卡牌
+      if (effectProcessor) {
+        effectProcessor.applyPermanentEffects(drawnCard);
+      }
+      
       player.hand.push(drawnCard);
       console.log('🎴 抽到:', drawnCard.name);
     }
@@ -994,6 +1091,16 @@ function advanceRunners(state, newBatter) {
     const thirdBaseRunner = state.bases[2];
     if (!thirdBaseRunner.locked) {
       console.log('🏠 三壘跑者回到本壘:', thirdBaseRunner.name);
+      
+      // 🆕 新增：處理得分角色的死聲效果
+      if (thirdBaseRunner.effects && thirdBaseRunner.effects.death && effectProcessor) {
+        console.log('💀 得分時觸發死聲效果:', thirdBaseRunner.name);
+        const deathResult = effectProcessor.processDeathrattle(thirdBaseRunner);
+        if (deathResult.success) {
+          console.log('✅ 得分死聲效果成功:', deathResult.description);
+        }
+      }
+      
       state.player.discard.push(thirdBaseRunner);
       pointsScored += 1;
       state.bases[2] = null;
@@ -1027,8 +1134,27 @@ function advanceRunners(state, newBatter) {
   if (!state.bases[0]) {
     console.log('🏃 新打者上一壘:', newBatter.name);
     state.bases[0] = newBatter;
+    
+    // 🆕 新增：處理上壘時的光環效果
+    if (newBatter.effects && newBatter.effects.aura && effectProcessor) {
+      console.log('🌟 上壘時觸發光環效果:', newBatter.name);
+      const auraResult = effectProcessor.processAura(newBatter);
+      if (auraResult.success) {
+        console.log('✅ 光環效果成功:', auraResult.description);
+      }
+    }
   } else {
     console.log('🏠 一壘被佔，新打者直接得分:', newBatter.name);
+    
+    // 🆕 新增：處理直接得分的死聲效果
+    if (newBatter.effects && newBatter.effects.death && effectProcessor) {
+      console.log('💀 直接得分時觸發死聲效果:', newBatter.name);
+      const deathResult = effectProcessor.processDeathrattle(newBatter);
+      if (deathResult.success) {
+        console.log('✅ 直接得分死聲效果成功:', deathResult.description);
+      }
+    }
+    
     state.player.discard.push(newBatter);
     pointsScored += 1;
   }
@@ -1046,6 +1172,16 @@ function applyEndOfInningPenalty(state) {
     const runner = state.bases[i];
     if (runner && !runner.locked) {
       console.log(`💔 局末懲罰：移除 ${i + 1} 壘的 ${runner.name}`);
+      
+      // 🆕 新增：處理局末移除的死聲效果
+      if (runner.effects && runner.effects.death && effectProcessor) {
+        console.log('💀 局末移除時觸發死聲效果:', runner.name);
+        const deathResult = effectProcessor.processDeathrattle(runner);
+        if (deathResult.success) {
+          console.log('✅ 局末死聲效果成功:', deathResult.description);
+        }
+      }
+      
       state.player.discard.push(runner);
       state.bases[i] = null;
       return; 
@@ -1055,18 +1191,49 @@ function applyEndOfInningPenalty(state) {
   console.log('🔒 所有壘上跑者都被鎖定，無人被移除');
 }
 
-// 🆕 新增：動態添加 CSS
-function addEnhancedCSS() {
-  const style = document.createElement('style');
-  style.textContent = additionalCSS;
-  document.head.appendChild(style);
-  console.log('✅ 增強 CSS 已添加');
+function hitBySpeed(speed, state) {
+  let doubleChance = 0.20 + (speed - 75) * 0.002;
+  let tripleChance = 0.05 + (speed - 75) * 0.001;
+
+  // 🆕 新增：檢查動態數值修改（如喵夢的效果）
+  const dynamicEffects = state.activeEffects.filter(effect => 
+    effect.value === 'dynamicByScore' && effect.stat === 'speed'
+  );
+  
+  dynamicEffects.forEach(effect => {
+    if (effect.calculation) {
+      const dynamicValue = effect.calculation(state);
+      speed += dynamicValue;
+      console.log(`${effect.source} 的動態效果: 速度+${dynamicValue}`);
+    }
+  });
+
+  // 重新計算機率
+  doubleChance = 0.20 + (speed - 75) * 0.002;
+  tripleChance = 0.05 + (speed - 75) * 0.001;
+
+  if (Math.random() < tripleChance) return { type: '3B', description: `三壘安打！`, points: 3 };
+  if (Math.random() < doubleChance) return { type: '2B', description: `二壘安打！`, points: 2 };
+  return { type: '1B', description: `一壘安打！`, points: 1 };
 }
 
-// 自動添加增強樣式
-if (typeof window !== 'undefined') {
-  setTimeout(addEnhancedCSS, 100);
+// 🆕 新增：更新結果文字的輔助函數
+function updateOutcomeText(message) {
+  const outcomeText = document.getElementById('outcome-text');
+  if (outcomeText) {
+    outcomeText.textContent = message;
+    outcomeText.style.color = '#f39c12';
+  }
 }
 
-console.log('🎮 準備啟動 MyGO!!!!! TCG...');
+console.log('🎮 準備啟動 MyGO!!!!! TCG Enhanced Edition...');
+console.log('🆕 新功能預覽:');
+console.log('  - 戰吼效果 (進場時觸發)');
+console.log('  - 死聲效果 (離場時觸發)');
+console.log('  - 羈絆效果 (條件觸發)');
+console.log('  - 光環效果 (持續效果)');
+console.log('  - 永久增強 (跨遊戲保持)');
+console.log('  - 動態OVR (實時計算)');
+console.log('  - 新戰術卡 (更多策略選擇)');
+
 initializeGame();
