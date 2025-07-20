@@ -110,18 +110,19 @@ export const DURATIONS = {
  * 支援新的卡牌機制：戰吼、死聲、條件效果等
  */
 export class EffectProcessor {
+  // 修改：EffectProcessor 構造函數，添加缺失的屬性
   constructor(gameState) {
     this.state = gameState;
     this.handlers = new Map();
-    this.permanentEffects = new Map(); // 儲存永久效果
-    this.nextCardBuffs = []; // 儲存下一張卡的加成
+    this.permanentEffects = new Map(); // 添加缺失的屬性
+    this.nextCardBuffs = []; // 添加缺失的屬性
     this.registerDefaultHandlers();
   }
 
   /**
    * 註冊所有預設的效果處理器
    */
-  // 🆕 新增：在 registerDefaultHandlers 方法中添加遺漏的處理器
+  // 修改：移除不存在的方法註冊，只保留已實作的方法
   registerDefaultHandlers() {
     // 基礎動作
     this.register(EFFECT_KEYWORDS.DRAW, this.handleDraw.bind(this));
@@ -133,21 +134,21 @@ export class EffectProcessor {
     this.register(EFFECT_KEYWORDS.BUFF, this.handleBuff.bind(this));
     this.register(EFFECT_KEYWORDS.DEBUFF, this.handleDebuff.bind(this));
     this.register(EFFECT_KEYWORDS.SET_TO, this.handleSetTo.bind(this));
-    this.register(EFFECT_KEYWORDS.MAX_STATS, this.handleMaxStats.bind(this));
+    // 暫時移除：this.register(EFFECT_KEYWORDS.MAX_STATS, this.handleMaxStats.bind(this));
     
-    // 條件效果
-    this.register(EFFECT_KEYWORDS.CONDITIONAL_BUFF, this.handleConditionalBuff.bind(this));
-    this.register(EFFECT_KEYWORDS.CONDITIONAL_DRAW, this.handleConditionalDraw.bind(this));
-    this.register(EFFECT_KEYWORDS.CONDITIONAL_EFFECT, this.handleConditionalEffect.bind(this));
+    // 暫時移除條件效果，因為方法未實作
+    // this.register(EFFECT_KEYWORDS.CONDITIONAL_BUFF, this.handleConditionalBuff.bind(this));
+    // this.register(EFFECT_KEYWORDS.CONDITIONAL_DRAW, this.handleConditionalDraw.bind(this));
+    // this.register(EFFECT_KEYWORDS.CONDITIONAL_EFFECT, this.handleConditionalEffect.bind(this));
     
-    // 高級效果
-    this.register(EFFECT_KEYWORDS.COPY_STATS, this.handleCopyStats.bind(this));
-    this.register(EFFECT_KEYWORDS.DECK_PEEK, this.handleDeckPeek.bind(this));
-    this.register(EFFECT_KEYWORDS.POWER_TRANSFER, this.handlePowerTransfer.bind(this));
-    this.register(EFFECT_KEYWORDS.TARGET_SPECIFIC, this.handleTargetSpecific.bind(this));
-    this.register(EFFECT_KEYWORDS.DOUBLE_BONUS, this.handleDoubleBonus.bind(this));
+    // 暫時移除高級效果，因為方法未實作
+    // this.register(EFFECT_KEYWORDS.COPY_STATS, this.handleCopyStats.bind(this));
+    // this.register(EFFECT_KEYWORDS.DECK_PEEK, this.handleDeckPeek.bind(this));
+    // this.register(EFFECT_KEYWORDS.POWER_TRANSFER, this.handlePowerTransfer.bind(this));
+    // this.register(EFFECT_KEYWORDS.TARGET_SPECIFIC, this.handleTargetSpecific.bind(this));
+    // this.register(EFFECT_KEYWORDS.DOUBLE_BONUS, this.handleDoubleBonus.bind(this));
     
-    // 戰術卡特殊效果
+    // 戰術卡特殊效果（暫時移除未實作的）
     this.register('discard_draw', this.handleDiscardDraw.bind(this));
     this.register('sacrifice_debuff', this.handleSacrificeDebuff.bind(this));
     this.register('deck_cycle', this.handleDeckCycle.bind(this));
