@@ -859,8 +859,9 @@ function runCpuTurn(state, handlers) {
 function changeHalfInning(state, handlers) {
   try {
     // 🆕 新增：清除臨時效果
-    if (effectProcessor) {
-      effectProcessor.cleanupExpiredEffects && effectProcessor.cleanupExpiredEffects(state, 'inning');
+    // 修改：正確調用效果處理器的清理方法
+    if (effectProcessor && effectProcessor.cleanupExpiredEffects) {
+      effectProcessor.cleanupExpiredEffects(state, 'inning');
     }
     
     if (state.half === 'bottom') {

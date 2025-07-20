@@ -121,6 +121,7 @@ export class EffectProcessor {
   /**
    * 註冊所有預設的效果處理器
    */
+  // 🆕 新增：在 registerDefaultHandlers 方法中添加遺漏的處理器
   registerDefaultHandlers() {
     // 基礎動作
     this.register(EFFECT_KEYWORDS.DRAW, this.handleDraw.bind(this));
@@ -606,27 +607,7 @@ export class EffectProcessor {
     };
   }
 
-  handleMaxStats(effectData, card) {
-    const currentBatter = this.getCurrentBatter();
-    if (!currentBatter) {
-      return { success: false, reason: '沒有當前打者' };
-    }
-
-    // 設置最大數值
-    currentBatter.tempBonus = currentBatter.tempBonus || {};
-    Object.keys(effectData.stats).forEach(stat => {
-      const targetValue = effectData.stats[stat];
-      const currentValue = currentBatter.stats[stat] + (currentBatter.tempBonus[stat] || 0);
-      if (currentValue < targetValue) {
-        currentBatter.tempBonus[stat] = targetValue - currentBatter.stats[stat];
-      }
-    });
-
-    return {
-      success: true,
-      description: `${currentBatter.name} 本次打擊數值設為最大值！`
-    };
-  }
+  handleMaxStats
 
   // === 輔助方法 ===
 
@@ -832,4 +813,43 @@ export class EffectProcessor {
     // 這個關鍵字的主要邏輯在卡牌效果本身，而非通用處理器
     return { success: true, description: `犧牲效果已在卡牌中處理` };
   }
+  // 🔧 修改：在 EffectProcessor 類中正確定義 cleanupExpiredEffects 方法
+  /**
+   * 清理過期效果
+   */
+  cleanupExpiredEffects(state, context = 'turn') {
+    const sizeBefore = state.activeEffects.length;
+    
+    switch (context) {
+      case 'atBat':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration !== 'atBat'
+        );
+        break;
+      case 'turn':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration !== 'atBat' && effect.duration !== 'turn'
+        );
+        break;
+      case 'inning':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration !== 'atBat' && 
+          effect.duration !== 'turn' && 
+          effect.duration !== 'inning'
+        );
+        break;
+      case 'game':
+        state.activeEffects = state.activeEffects.filter(effect => 
+          effect.duration === 'permanent'
+        );
+        break;
+    }
+    
+    const sizeAfter = state.activeEffects.length;
+    if (sizeBefore !== sizeAfter) {
+      console.log(`🧹 清理了 ${sizeBefore - sizeAfter} 個過期效果 (${context})`);
+    }
+  }
+
+
 } // 補上 EffectProcessor class 的結尾 }
