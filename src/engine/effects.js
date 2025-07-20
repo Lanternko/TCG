@@ -148,11 +148,16 @@ export class EffectProcessor {
     
     // 戰術卡特殊效果
     this.register('discard_draw', this.handleDiscardDraw.bind(this));
+    this.register('discardThenDraw', this.handleDiscardThenDraw.bind(this)); // 新增
+    this.register('putBackThenDraw', this.handlePutBackThenDraw.bind(this)); // 新增
     this.register('sacrifice_debuff', this.handleSacrificeDebuff.bind(this));
     this.register('deck_cycle', this.handleDeckCycle.bind(this));
     this.register('power_boost', this.handlePowerBoost.bind(this));
     this.register('drawBaseOnMyGO', this.handleDrawBaseOnMyGO.bind(this));
     this.register('target_buff', this.handleTargetBuff.bind(this));
+    this.register('destroyAllBasesForPermanentPower', this.handleSacrificeAll.bind(this)); // 新增
+    this.register('sacrifice_all_bases', this.handleSacrificeAll.bind(this)); // 新增
+  
     
     // 狀態效果
     this.register(EFFECT_KEYWORDS.LOCK, this.handleLock.bind(this));
@@ -179,34 +184,48 @@ export class EffectProcessor {
   /**
    * 處理卡牌效果的主要入口
    */
+  // 修改：processEffect 方法 - 添加更好的錯誤處理和調試
   processEffect(card, effectData, trigger) {
-    console.log(`🎭 處理效果: ${card.name} - ${trigger}`);
+    console.log(`🎭 處理效果: ${card.name} - ${trigger}`, effectData);
     
     if (!effectData) {
-        return { success: false, reason: '沒有效果數據' };
+      console.warn(`❌ 沒有效果數據: ${card.name}`);
+      return { success: false, reason: '沒有效果數據' };
     }
     
-    if (!this.checkCondition(effectData.condition, card)) {
+    // 檢查條件
+    if (effectData.condition && !this.checkCondition(effectData.condition, card)) {
       console.log(`❌ 條件不符: ${effectData.condition}`);
       return { success: false, reason: '條件不符' };
     }
 
+    // 確定要執行的動作
     const action = effectData.action || effectData.keyword;
+    console.log(`🔍 嘗試執行動作: ${action}`);
+    
+    if (!action) {
+      console.warn(`❌ 沒有指定動作: ${card.name}`);
+      return { success: false, reason: '沒有指定動作' };
+    }
+
     const handler = this.handlers.get(action);
     
     if (!handler) {
       console.warn(`⚠️ 未知的效果關鍵字: ${action}`);
-      return { success: false, reason: '未知效果' };
+      console.log(`📋 可用的處理器:`, Array.from(this.handlers.keys()));
+      return { success: false, reason: `未知效果: ${action}` };
     }
 
     try {
       const result = handler(effectData, card);
-      if (result && result.description) {
+      if (result && result.success) {
         console.log(`✅ 效果執行成功: ${result.description}`);
+      } else {
+        console.warn(`❌ 效果執行失敗:`, result);
       }
       return result;
     } catch (error) {
-      console.error(`❌ 效果執行失敗: ${action} - ${error.message}`);
+      console.error(`❌ 效果執行異常: ${action}`, error);
       return { success: false, reason: error.message };
     }
   }
@@ -214,45 +233,54 @@ export class EffectProcessor {
   /**
    * 檢查觸發條件
    */
+  // 修改：checkCondition 方法 - 添加更多條件支持
   checkCondition(condition, card) {
     if (!condition) return true;
     
-    switch (condition.type || condition) {
-      case CONDITIONS.ON_BASE:
-        return this.state.bases.some(base => base && base.name === card.name);
-      case CONDITIONS.IN_HAND:
-        return this.state.player.hand.some(handCard => handCard.name === card.name);
-      case CONDITIONS.BASES_EMPTY:
-        return this.state.bases.every(base => base === null);
-      case CONDITIONS.MYGO_MEMBERS_ON_BASE:
-        return this.state.bases.some(base => base && base.band === 'MyGO!!!!!');
-      case CONDITIONS.TOMORI_ON_BASE:
-        return this.state.bases.some(base => base && base.name.includes('燈'));
-      case CONDITIONS.SAKI_ON_BASE:
-        return this.state.bases.some(base => base && base.name.includes('祥子'));
-      case CONDITIONS.SCORE_COMPARISON:
-        // 在具體處理中判斷
-        return true; 
-      case CONDITIONS.ANY_CHARACTER_DIES:
-        // 在死亡事件觸發時檢查
-        return true; 
-      case 'countMyGOBattersOnBase':
-        const count = this.state.bases.filter(b => b && b.band === 'MyGO!!!!!').length;
-        return count >= (condition.value || 1);
-      default:
-        console.log(`🔍 未知條件: ${condition.type || condition}`);
-        return true;
+    // 處理字符串條件
+    if (typeof condition === 'string') {
+      switch (condition) {
+        case 'basesEmpty':
+          return this.state.bases.every(base => base === null);
+        case 'mygoMembersOnBase':
+          return this.state.bases.some(base => base && base.band === 'MyGO!!!!!');
+        case 'tomoriOnBase':
+          return this.state.bases.some(base => base && base.name.includes('燈'));
+        case 'sakiOnBase':
+          return this.state.bases.some(base => base && base.name.includes('祥子'));
+        case 'scoreComparison':
+          return true; // 在具體處理中判斷
+        default:
+          console.log(`🔍 未知字符串條件: ${condition}`);
+          return true;
+      }
     }
+    
+    // 處理對象條件
+    if (typeof condition === 'object') {
+      switch (condition.type) {
+        case 'basesEmpty':
+          return this.state.bases.every(base => base === null);
+        case 'countMyGOBattersOnBase':
+          const count = this.state.bases.filter(b => b && b.band === 'MyGO!!!!!').length;
+          return count >= (condition.value || 1);
+        default:
+          console.log(`🔍 未知對象條件:`, condition);
+          return true;
+      }
+    }
+    
+    return true;
   }
 
   
   // === 基礎動作處理器 ===
 
-  // 新增：在 EffectProcessor 類中添加 applyPermanentEffects 方法
+  // 修改：applyPermanentEffects 方法 - 使用完整名稱
   applyPermanentEffects(card) {
-    const cardName = this.getCardSimpleName(card.name);
-    if (this.permanentEffects.has(cardName)) {
-      const effects = this.permanentEffects.get(cardName);
+    // 直接使用完整名稱，不要簡化
+    if (this.permanentEffects.has(card.name)) {
+      const effects = this.permanentEffects.get(card.name);
       card.permanentBonus = card.permanentBonus || {};
       
       Object.keys(effects).forEach(stat => {
@@ -262,6 +290,7 @@ export class EffectProcessor {
       console.log(`🔮 應用永久效果: ${card.name}`, effects);
     }
   }
+
 
   // 新增：在 EffectProcessor 類中添加 applyNextCardBuffs 方法
   applyNextCardBuffs(card) {
@@ -277,17 +306,7 @@ export class EffectProcessor {
     this.nextCardBuffs = this.nextCardBuffs.filter(buff => !this.isTargetCard(card, buff.cardName));
   }
 
-  // 新增：在 EffectProcessor 類中添加 getCardSimpleName 方法
-  getCardSimpleName(fullName) {
-    if (fullName.includes('燈')) return '燈';
-    if (fullName.includes('祥子')) return '祥子';
-    if (fullName.includes('睦') && !fullName.includes('若葉')) return '睦';
-    if (fullName.includes('Mortis')) return 'Mortis';
-    if (fullName.includes('初華')) return '初華';
-    if (fullName.includes('真奈')) return '真奈';
-    if (fullName.includes('樂奈')) return '樂奈';
-    return fullName;
-  }
+  
   // 新增：在 EffectProcessor 類中添加 processBattlecry 方法
   processBattlecry(card) {
     if (card.effects && card.effects.play) {
@@ -433,6 +452,91 @@ export class EffectProcessor {
     return { success: false, reason: '未知的動作類型' };
   }
 
+  // 新增：handleDiscardThenDraw 處理器
+  handleDiscardThenDraw(effectData, card) {
+    const discardCount = effectData.discardCount || 1;
+    const drawCount = effectData.drawCount || 1;
+    
+    if (this.state.player.hand.length < discardCount) {
+      return { success: false, reason: '手牌不足' };
+    }
+
+    // 棄牌
+    for (let i = 0; i < discardCount; i++) {
+      const discarded = this.state.player.hand.pop();
+      this.state.player.discard.push(discarded);
+    }
+
+    // 抽牌
+    this.drawCards(this.state.player, drawCount);
+
+    return {
+      success: true,
+      description: `棄了 ${discardCount} 張牌，抽了 ${drawCount} 張牌`
+    };
+  }
+
+  // 新增：handlePutBackThenDraw 處理器
+  handlePutBackThenDraw(effectData, card) {
+    const putBackCount = effectData.putBackCount || 1;
+    const drawCount = effectData.drawCount || 2;
+    
+    if (this.state.player.hand.length < putBackCount) {
+      return { success: false, reason: '手牌不足' };
+    }
+
+    // 將手牌放回牌庫底
+    for (let i = 0; i < putBackCount; i++) {
+      const putBack = this.state.player.hand.pop();
+      this.state.player.deck.unshift(putBack); // 放到牌庫底
+    }
+
+    // 抽牌
+    this.drawCards(this.state.player, drawCount);
+
+    return {
+      success: true,
+      description: `放回了 ${putBackCount} 張牌到牌庫底，抽了 ${drawCount} 張牌`
+    };
+  }
+
+  // 新增：handleSacrificeAll 處理器 (解散樂隊)
+  handleSacrificeAll(effectData, card) {
+    const destroyedCards = [];
+    
+    // 收集所有壘上的卡牌
+    this.state.bases.forEach((baseCard, index) => {
+      if (baseCard) {
+        destroyedCards.push(baseCard);
+        this.state.player.discard.push(baseCard);
+      }
+    });
+    
+    // 清空壘包
+    this.state.bases = [null, null, null];
+    
+    // 計算加成
+    const bonusPerCard = effectData.bonusPerDestroyed || 5;
+    const totalBonus = destroyedCards.length * bonusPerCard;
+    
+    if (totalBonus > 0) {
+      // 為所有角色卡永久增加數值
+      [...this.state.player.deck, ...this.state.player.hand, ...this.state.player.discard].forEach(deckCard => {
+        if (deckCard.type === 'batter') {
+          deckCard.permanentBonus = deckCard.permanentBonus || {};
+          ['power', 'hitRate', 'contact', 'speed'].forEach(stat => {
+            deckCard.permanentBonus[stat] = (deckCard.permanentBonus[stat] || 0) + bonusPerCard;
+          });
+        }
+      });
+    }
+    
+    return {
+      success: true,
+      description: `解散樂隊！摧毀了 ${destroyedCards.length} 名角色，所有打者全數值永久+${bonusPerCard}！`
+    };
+  }
+
   // === 高級效果處理器 ===
 
   handleCopyStats(effectData, card) {
@@ -463,24 +567,32 @@ export class EffectProcessor {
     };
   }
 
+  // 修改：handlePowerTransfer 方法 - 使用完整名稱匹配
+  
   handlePowerTransfer(effectData, card) {
     const targetName = effectData.target;
     const stat = effectData.stat;
     const value = effectData.value;
 
-    if (!this.permanentEffects.has(targetName)) {
-      this.permanentEffects.set(targetName, {});
-    }
-    const targetEffects = this.permanentEffects.get(targetName);
-    
-    const statsToBuff = stat === 'allStats' ? ['power', 'hitRate', 'contact', 'speed'] : [stat];
-    statsToBuff.forEach(s => {
-      targetEffects[s] = (targetEffects[s] || 0) + value;
+    // 找到所有匹配的目標卡牌
+
+    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+      if (targetCard && this.isTargetCard(targetCard, targetName)) {
+        // 直接為卡牌添加永久加成
+        targetCard.permanentBonus = targetCard.permanentBonus || {};
+        if (stat === 'allStats') {
+          ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
+            targetCard.permanentBonus[s] = (targetCard.permanentBonus[s] || 0) + value;
+          });
+        } else {
+          targetCard.permanentBonus[stat] = (targetCard.permanentBonus[stat] || 0) + value;
+        }
+      }
     });
-    
+
     return {
       success: true,
-      description: `${card.name} 為所有 ${targetName} 提供了永久 ${stat}+${value}`
+      description: `${card.name} 為所有 ${targetName} 永久增加了 ${stat}+${value}`
     };
   }
 
