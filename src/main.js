@@ -22,31 +22,26 @@ async function initializeGame() {
   try {
     console.log('📦 開始載入增強版遊戲模組...');
     
-    const configModule = await import('./data/config.js');
-    CONFIG = configModule.CONFIG;
-    console.log('✅ Config 載入成功');
+    // 載入新的管理器
+    const gameConfigModule = await import('./data/game_config.js');
+    const GAME_CONFIG = gameConfigModule.GAME_CONFIG;
+    console.log('✅ Game Config 載入成功');
     
-    const teamsModule = await import('./data/teams.js');
-    TEAMS = teamsModule.TEAMS;
-    console.log('✅ Enhanced Teams 載入成功:', TEAMS.length, '個隊伍');
+    const cardEffectsModule = await import('./engine/card_specific_effects.js');
+    const CardSpecificEffects = cardEffectsModule.CardSpecificEffects;
+    console.log('✅ Card Specific Effects 載入成功');
     
-    const gameStateModule = await import('./engine/game_state.js');
-    createGameState = gameStateModule.createGameState;
-    console.log('✅ Game State 載入成功');
+    const turnManagerModule = await import('./engine/turn_manager.js');
+    const TurnManager = turnManagerModule.TurnManager;
+    console.log('✅ Turn Manager 載入成功');
     
-    // 🆕 新增：載入增強效果系統
-    const effectsModule = await import('./engine/effects.js');
-    EffectProcessor = effectsModule.EffectProcessor;
-    effectRegistry = effectsModule.effectRegistry;
-    console.log('✅ Enhanced Effects System 載入成功');
+    const scoringManagerModule = await import('./engine/scoring_manager.js');
+    const ScoringManager = scoringManagerModule.ScoringManager;
+    console.log('✅ Scoring Manager 載入成功');
     
-    const uiModule = await import('./ui/ui.js');
-    render = uiModule.render;
-    console.log('✅ UI 載入成功');
-    
-    if (uiModule.initializeCancelFunctionality) {
-      uiModule.initializeCancelFunctionality();
-    }
+    // 將管理器掛載到 window 供全域使用
+    window.GAME_CONFIG = GAME_CONFIG;
+    window.managers = {};
     
     startGame();
     
@@ -56,28 +51,48 @@ async function initializeGame() {
   }
 }
 
+/**
+ * 遊戲初始化的主函式 (合併主管改動後的最終版)
+ */
 function startGame() {
   try {
     console.log('🎯 開始初始化增強版遊戲...');
     
+    // --- 第 1 步：創建核心遊戲狀態 ---
     const state = createGameState();
     currentGameState = state;
     window.gameState = state;
-    
-    // 🆕 新增：初始化效果處理器
-    effectProcessor = new EffectProcessor(state);
-    window.effectProcessor = effectProcessor;
-    console.log('✅ 效果處理器初始化完成');
-    
     console.log('✅ 遊戲狀態創建成功');
+
+    // --- 第 2 步：初始化所有核心管理器 (主管的新改動) ---
+    // 首先，初始化最基礎的效果處理器，因為其他管理器都依賴它。
+    const effectProcessor = new EffectProcessor(state);
+    window.effectProcessor = effectProcessor;
+    console.log('✅ 效果處理器 (EffectProcessor) 初始化完成');
+
+    // (假設您未來會創建這些檔案與類別)
+    // 接下來，初始化其他依賴效果處理器的管理器。
+    // const cardEffects = new CardSpecificEffects(state, effectProcessor);
+    // const turnManager = new TurnManager(state, effectProcessor);
+    // const scoringManager = new ScoringManager(state, effectProcessor, cardEffects);
     
+    // 將所有管理器儲存在 window 物件上，方便全域調用與偵錯。
+    // window.managers = {
+    //   cardEffects,
+    //   turnManager,
+    //   scoringManager
+    // };
+    // console.log('✅ 所有遊戲管理器初始化完成');
+
+    // --- 第 3 步：準備隊伍資料與 UI 互動 ---
     const mygoTeam = TEAMS.find(team => team.id === "MGO");
     if (!mygoTeam) {
       throw new Error('找不到MyGO隊伍資料');
     }
-    
     console.log('✅ MyGO隊伍確認:', mygoTeam.name);
     
+    // 創建一個 handlers 物件，專門用來處理所有來自 UI 的事件
+    // 例如：點擊、拖拽等。
     const handlers = {
       select: (idx) => {
         console.log('🎯 選擇卡牌:', idx);
@@ -86,9 +101,8 @@ function startGame() {
           render(state, handlers);
         }
       },
-      
       button: () => {
-        console.log('🎯 按鈕點擊');
+        console.log('🎯 主按鈕點擊');
         const gameStarted = !!state.cpu.activePitcher;
         
         if (!gameStarted) {
@@ -99,14 +113,12 @@ function startGame() {
         
         render(state, handlers);
       },
-      
       baseClick: (baseIndex) => {
         console.log('🎯 壘包點擊:', baseIndex);
         if (awaitingTargetSelection && state.bases[baseIndex]) {
           handleTargetSelection(baseIndex, state, handlers);
         }
       },
-      
       dragToBatter: (cardIndex) => {
         console.log('🎯 拖拽到打擊位置:', cardIndex);
         if (state.playerTurn && !awaitingTargetSelection) {
@@ -114,26 +126,30 @@ function startGame() {
           runPlayerTurn(state, handlers);
         }
       },
-      
-      render: render
+      render: render // 將 render 函式也放入 handlers，方便跨模組呼叫
     };
     
+    // --- 第 4 步：設定全域變數與啟動 UI ---
     currentHandlers = handlers;
-    
+    window.currentHandlers = handlers;
     window.handleHandCardSelection = handleHandCardSelection;
     window.cancelTargetSelection = cancelTargetSelection;
-    window.currentHandlers = handlers;
     
+    // 設定拖拽區域的事件監聽
     setupDragDropZones(handlers);
-    render(state, handlers);
     
+    // 綁定主按鈕的點擊事件
     const mainButton = document.getElementById('main-button');
     if (mainButton) {
       mainButton.onclick = handlers.button;
     }
     
-    console.log('🎉 增強版遊戲初始化完成！');
+    // 執行第一次的畫面渲染
+    render(state, handlers);
+    
+    // --- 第 5 步：完成初始化 ---
     gameInitialized = true;
+    console.log('🎉 增強版遊戲初始化完成！');
     
     const outcomeText = document.getElementById('outcome-text');
     if (outcomeText) {
@@ -141,6 +157,7 @@ function startGame() {
     }
     
   } catch (error) {
+    // 錯誤處理
     console.error('❌ 遊戲初始化失敗:', error);
     showErrorMessage(`初始化失敗: ${error.message}`);
   }
@@ -200,42 +217,41 @@ function setupDragDropZones(handlers) {
   }
 }
 
+// 修改：initDecks 函數 - 使用新的配置
 function initDecks(state, handlers) {
-  try {
-    console.log('🎯 初始化增強版牌組...');
-    
-    const playerTeam = TEAMS.find(team => team.id === "MGO");
-    state.player.team = playerTeam;
-    state.player.deck = [...playerTeam.batters, ...playerTeam.actionCards].map(prepareCard);
-    shuffle(state.player.deck);
-    state.player.hand = [];
-    state.player.pitcher = prepareCard(playerTeam.pitchers[0]);
-    
-    draw(state.player, 5);
-    
-    const cpuTeam = TEAMS.find(team => team.id === "NYY");
-    state.cpu.team = cpuTeam;
-    state.cpu.deck = [...cpuTeam.batters].map(prepareCard);
-    state.cpu.activePitcher = prepareCard(cpuTeam.pitchers[0]);
-    
-    console.log('✅ 增強版牌組初始化完成');
-    console.log('  - 玩家手牌:', state.player.hand.length, '張');
-    console.log('  - 玩家牌組:', state.player.deck.length, '張');
-    console.log('  - CPU牌組:', state.cpu.deck.length, '張');
-    
-    const outcomeText = document.getElementById('outcome-text');
-    if (outcomeText) {
-      outcomeText.textContent = '🎵 MyGO!!!!! vs Yankees - 客隊先攻！準備感受新效果的威力！';
-    }
-    
-    setTimeout(() => {
-      runCpuTurn(state, handlers);
-    }, 1000);
-    
-  } catch (error) {
-    console.error('❌ 牌組初始化失敗:', error);
-    showErrorMessage(`牌組初始化失敗: ${error.message}`);
-  }
+ try {
+   console.log('🎯 初始化牌組...');
+   
+   const playerTeam = TEAMS.find(team => team.id === "MGO");
+   state.player.team = playerTeam;
+   state.player.deck = [...playerTeam.batters, ...playerTeam.actionCards].map(prepareCard);
+   shuffle(state.player.deck);
+   state.player.hand = [];
+   state.player.pitcher = prepareCard(playerTeam.pitchers[0]);
+   
+   // 使用配置的起始手牌數
+   draw(state.player, window.GAME_CONFIG.HAND.STARTING_DRAW);
+   
+   const cpuTeam = TEAMS.find(team => team.id === "NYY");
+   state.cpu.team = cpuTeam;
+   state.cpu.deck = [...cpuTeam.batters].map(prepareCard);
+   state.cpu.activePitcher = prepareCard(cpuTeam.pitchers[0]);
+   
+   console.log('✅ 牌組初始化完成');
+   
+   const outcomeText = document.getElementById('outcome-text');
+   if (outcomeText) {
+     outcomeText.textContent = '🎵 MyGO!!!!! vs Yankees - 客隊先攻！';
+   }
+   
+   // 使用回合管理器開始CPU回合
+   window.managers.turnManager.startTurn(false);
+   setTimeout(() => runCpuTurn(state, handlers), 1000);
+   
+ } catch (error) {
+   console.error('❌ 牌組初始化失敗:', error);
+   showErrorMessage(`牌組初始化失敗: ${error.message}`);
+ }
 }
 
 /**
@@ -243,70 +259,110 @@ function initDecks(state, handlers) {
  * @param {object} state - 當前的遊戲狀態物件
  * @param {object} handlers - 包含所有UI互動處理器的物件
  */
+// 修改：runPlayerTurn 函數 - 使用新的管理器
 function runPlayerTurn(state, handlers) {
-  try {
-    // --- 第 1 步：獲取並驗證玩家選擇的卡牌 ---
-    const cardIndex = state.selected;
-    const card = state.player.hand[cardIndex];
+ try {
+   const cardIndex = state.selected;
+   const card = state.player.hand[cardIndex];
+   
+   if (!card) {
+     console.warn('⚠️ 沒有選擇有效的卡牌');
+     state.selected = -1;
+     render(state, handlers);
+     return;
+   }
+   
+   console.log(`🎯 玩家回合：使用 ${card.name}`);
+   
+   if (card.type === 'batter') {
+     // 處理戰吼效果
+     handleBattlecry(card);
+     
+     // 進行打擊
+     const result = simulateAtBat(card, state.cpu.activePitcher, state);
+     
+     // 使用新的得分管理器處理結果
+     const scoreResult = window.managers.scoringManager.processAtBatResult(result, card);
+     
+     // 更新UI
+     updateOutcomeText(scoreResult.description);
+     
+     // 移除卡牌
+     removeCardFromHand(state, cardIndex);
+     
+     // 使用回合管理器處理打牌後邏輯
+     window.managers.turnManager.afterCardPlayed('batter');
+     
+   } else if (card.type === 'action') {
+     // 處理戰術卡
+     if (needsTargetSelection(card)) {
+       startTargetSelection(card, state, handlers);
+       return;
+     } else {
+       executeActionCard(card, state);
+       removeCardFromHand(state, cardIndex);
+     }
+   }
+   
+   state.selected = -1;
+   render(state, handlers);
+   
+   // 檢查是否需要更換半局
+   if (state.outs >= window.GAME_CONFIG.FLOW.OUTS_PER_INNING) {
+     setTimeout(() => changeHalfInning(state, handlers), 1500);
+   }
+   
+ } catch (error) {
+   console.error('❌ 玩家回合執行失敗:', error);
+   showErrorMessage(`玩家回合出錯: ${error.message}`);
+ }
+}
 
-    // 防禦性檢查：如果沒有有效的卡牌，則中止回合
-    if (!card) {
-      console.warn('⚠️ 玩家回合中止：沒有選擇有效的卡牌。');
-      // 重置選擇狀態並刷新UI，以防萬一
-      state.selected = -1;
-      render(state, handlers);
-      return;
-    }
-    
-    console.log(`🎯 玩家回合開始，使用卡牌: ${card.name} (類型: ${card.type})`);
-
-    // --- 第 2 步：根據卡牌類型，處理遊戲邏輯 ---
-    if (card.type === 'batter') {
-      // 如果是打者卡，執行打擊模擬
-      const result = simulateSimpleAtBat(card, state.cpu.activePitcher);
-      processSimpleOutcome(result, state, card);
-      
-      // 更新畫面上方的結果文字
-      const outcomeText = document.getElementById('outcome-text');
-      if (outcomeText) {
-        outcomeText.textContent = result.description;
-      }
-      
-      // 從手牌中移除打出的這張卡
-      removeCardFromHand(state, cardIndex);
-      
-      // 抽一張新卡來補充手牌
-      draw(state.player, 1);
-
-    } else if (card.type === 'action') {
-      // 如果是戰術卡，執行戰術效果
-      // (此處假設戰術卡效果已在其他地方處理，例如 handleTargetSelection)
-      // 這裡我們只處理戰術卡使用後自身的移除
-      executeActionCard(card, state); // 假設這是執行效果的函式
-      removeCardFromHand(state, cardIndex);
-      // 註：戰術卡通常不額外抽牌，所以這裡沒有呼叫 draw()
-    }
-
-    // --- 第 3 步：重置狀態，為下一回合做準備 ---
-    // 無論打出什麼牌，都必須重置玩家的「選擇狀態」
-    state.selected = -1;
-    
-    // --- 第 4 步：渲染！ ---
-    // 這是最關鍵的一步：在所有數據（手牌、牌庫、壘包）都已經
-    // 100% 更新完畢之後，才呼叫 render() 函式來刷新整個遊戲畫面。
-    // 這確保了 UI 顯示的永遠是最新的、正確的遊戲狀態。
-    render(state, handlers);
-    console.log('✅ 玩家回合結束，UI 已刷新。');
-
-    // --- 第 5 步：檢查半局是否結束 ---
-    if (state.outs >= 3) {
-      setTimeout(() => changeHalfInning(state, handlers), 1500);
-    }
-
-  } catch (error) {
-    console.error('❌ 玩家回合執行失敗:', error);
-    showErrorMessage(`玩家回合出錯: ${error.message}`);
-  }
+// 新增：處理戰吼效果
+function handleBattlecry(card) {
+ if (!card.effects || !card.effects.play) return;
+ 
+ const cardEffects = window.managers.cardEffects;
+ let result;
+ 
+ // 使用個別卡牌效果處理器
+ switch (card.name) {
+   case '愛音':
+     result = cardEffects.playAnon(card);
+     break;
+   case '樂奈':
+     result = cardEffects.playRana(card);
+     break;
+   case '立希':
+     result = cardEffects.playTaki(card);
+     if (result.needsTarget) {
+       // 需要目標選擇
+       startTargetSelection(card, currentGameState, currentHandlers);
+       return;
+     }
+     break;
+   case '喵夢':
+     result = cardEffects.playNyamu(card);
+     break;
+   case '海鈴':
+     result = cardEffects.playUmirin(card);
+     break;
+   case '祥子':
+     result = cardEffects.playSaki(card);
+     break;
+   case '初華':
+     result = cardEffects.playUika(card);
+     break;
+   default:
+     // 使用通用效果處理器
+     if (effectProcessor.processBattlecry) {
+       result = effectProcessor.processBattlecry(card);
+     }
+ }
+ 
+ if (result && result.success) {
+   console.log('✅ 戰吼效果:', result.description);
+ }
 }
 
 // 修復問題1：確保卡牌移除後正確抽牌和渲染
@@ -889,76 +945,64 @@ function runCpuTurn(state, handlers) {
   }
 }
 
+// 修改：changeHalfInning 函數 - 使用回合管理器
 function changeHalfInning(state, handlers) {
-  try {
-    // 🆕 新增：清除臨時效果
-    // 修改：正確調用效果處理器的清理方法
-    if (effectProcessor && effectProcessor.cleanupExpiredEffects) {
-      effectProcessor.cleanupExpiredEffects(state, 'inning');
-    }
-    
-    if (state.half === 'bottom') {
-      applyEndOfInningPenalty(state);
-    }
-    
-    // 清除臨時加成
-    state.bases.forEach(baseCard => {
-      if (baseCard && baseCard.tempBonus) {
-        delete baseCard.tempBonus;
-      }
-    });
-    
-    state.player.hand.forEach(card => {
-      if (card.tempBonus) {
-        delete card.tempBonus;
-      }
-    });
-    
-    state.outs = 0;
-    
-    if (state.half === 'top') {
-      state.half = 'bottom';
-      state.playerTurn = true;
-      
-      const outcomeText = document.getElementById('outcome-text');
-      if (outcomeText) {
-        outcomeText.textContent = '🎵 輪到MyGO!!!!!攻擊！感受新效果的力量！';
-      }
-      
-    } else {
-      state.half = 'top';
-      state.currentInning++;
-      state.playerTurn = false;
-      
-      if (state.currentInning > CONFIG.innings) {
-        const winner = state.score.home > state.score.away ? "MyGO!!!!!獲勝！" : 
-                      state.score.away > state.score.home ? "Yankees獲勝！" : "平手！";
-        
-        const outcomeText = document.getElementById('outcome-text');
-        if (outcomeText) {
-          outcomeText.textContent = `🎉 比賽結束！${winner} 比數 ${state.score.away}:${state.score.home}`;
-        }
-        
-        state.over = true;
-        return;
-      }
-      
-      const outcomeText = document.getElementById('outcome-text');
-      if (outcomeText) {
-        outcomeText.textContent = '⚾ 客隊攻擊中...';
-      }
-      
-      setTimeout(() => {
-        runCpuTurn(state, handlers);
-      }, 1000);
-    }
-    
-    render(state, handlers);
-    
-  } catch (error) {
-    console.error('❌ 半局更換失敗:', error);
-    showErrorMessage(`半局更換失敗: ${error.message}`);
-  }
+ try {
+   const turnManager = window.managers.turnManager;
+   const result = turnManager.changeHalfInning();
+   
+   const outcomeText = document.getElementById('outcome-text');
+   
+   switch (result) {
+     case 'player_turn':
+       // 開始玩家回合
+       turnManager.startTurn(true);
+       if (outcomeText) {
+         outcomeText.textContent = '🎵 輪到MyGO!!!!!攻擊！';
+       }
+       break;
+       
+     case 'cpu_turn':
+       // 開始CPU回合
+       turnManager.startTurn(false);
+       if (outcomeText) {
+         outcomeText.textContent = '⚾ 客隊攻擊中...';
+       }
+       setTimeout(() => runCpuTurn(state, handlers), 1000);
+       break;
+       
+     case 'game_over':
+       // 遊戲結束
+       handleGameOver(state);
+       break;
+   }
+   
+   render(state, handlers);
+   
+ } catch (error) {
+   console.error('❌ 半局更換失敗:', error);
+   showErrorMessage(`半局更換失敗: ${error.message}`);
+ }
+}
+
+// 新增：處理遊戲結束
+function handleGameOver(state) {
+ state.over = true;
+ 
+ const winner = state.score.home > state.score.away ? "MyGO!!!!!獲勝！" : 
+               state.score.away > state.score.home ? "Yankees獲勝！" : "平手！";
+ 
+ const outcomeText = document.getElementById('outcome-text');
+ if (outcomeText) {
+   outcomeText.textContent = `🎉 比賽結束！${winner} 比數 ${state.score.away}:${state.score.home}`;
+ }
+ 
+ // 顯示重新開始按鈕
+ const restartButton = document.getElementById('restart-button');
+ if (restartButton) {
+   restartButton.style.display = 'block';
+   restartButton.onclick = () => location.reload();
+ }
 }
 
 function simulateSimpleAtBat(batter, pitcher) {

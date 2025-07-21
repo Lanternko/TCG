@@ -1,39 +1,64 @@
 // src/ui/ui.js - 增強的UI系統
 
-// 🔧 修改：render 函數 - 添加記錄面板渲染和光環描述
+/**
+ * 遊戲主渲染函式 (合併主管改動後的最終版)
+ * 負責根據最新的遊戲狀態 (state) 更新整個 UI 畫面
+ * @param {object} state - 當前的遊戲狀態物件
+ * @param {object} handlers - 包含所有UI互動處理器的物件
+ */
 export function render(state, handlers) {
   try {
+    // --- 第 1 步：輸出詳細的渲染前日誌 (合併主管的改動) ---
+    // 這個日誌更詳細，方便在開發者工具中快速追蹤當前狀態
     console.log('🎨 開始渲染UI...', {
       playerTurn: state.playerTurn,
       selected: state.selected,
       handSize: state.player.hand.length,
       outs: state.outs,
       awaitingTarget: window.awaitingTargetSelection,
-      bases: state.bases.map(b => b ? b.name : null)
+      bases: state.bases.map(b => b ? b.name : null),
+      score: `${state.score.away}-${state.score.home}`,
+      inning: `${state.currentInning}局${state.half === 'top' ? '上' : '下'}`
     });
     
-    // 更新全域狀態引用
+    // --- 第 2 步：更新全域狀態引用 ---
+    // 讓其他模組或全域函式可以隨時獲取最新的狀態和處理器
     window.gameState = state;
     window.currentHandlers = handlers;
     
+    // --- 第 3 步：呼叫所有獨立的渲染函式 ---
+    // 按照從上到下的順序，依序更新畫面的各個部分
     renderScore(state.score);
     renderOuts(state.outs);
     renderInning(state.currentInning, state.half);
     renderBases(state.bases, handlers.baseClick);
     renderPitchers(state.cpu.activePitcher, state.player.pitcher);
-    renderAuraDescription(state); // 🆕 新增：渲染光環描述
+    renderAuraDescription(state);
     renderHand(state.player.hand, state.selected, handlers);
     renderDeckInfo(state.player);
     renderMainButton(state, handlers.button);
     renderActiveEffects(state.activeEffects);
     renderSpecialStates(state);
     renderGameLog(state);
-    updateDropHint(state); // 🆕 新增：更新拖拽提示
+    updateDropHint(state);
     updateContextualHints(state);
+
+    // --- 第 4 步：新增的回合提示與錯誤處理 (主管的新改動) ---
+    // 這是一個重要的防禦性程式碼，防止遊戲因玩家手牌為空而卡死
+    if (state.playerTurn && state.player.hand.length === 0 && !state.over) {
+      console.warn('⚠️ 玩家手牌為空！這可能是一個 Bug，需要檢查抽牌邏輯。');
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = '⚠️ 系統錯誤：手牌為空！請重新整理頁面。';
+        outcomeText.style.color = '#e74c3c'; // 紅色警告文字
+      }
+    }
     
+    // --- 第 5 步：渲染完成 ---
     console.log('✅ UI渲染完成');
     
   } catch (error) {
+    // 錯誤處理
     console.error('❌ UI渲染失敗:', error);
   }
 }
@@ -423,6 +448,30 @@ function showCardTooltip(card, x, y) {
   
   currentTooltip.innerHTML = tooltipContent;
   document.body.appendChild(currentTooltip);
+}
+
+// 新增：顯示得分動畫
+export function showScoreAnimation(points, position) {
+  const scorePopup = document.createElement('div');
+  scorePopup.className = 'score-popup';
+  scorePopup.textContent = `+${points}`;
+  scorePopup.style.cssText = `
+    position: fixed;
+    left: ${position.x}px;
+    top: ${position.y}px;
+    color: #f1c40f;
+    font-size: 2rem;
+    font-weight: bold;
+    z-index: 1000;
+    animation: scoreFloat 2s ease-out forwards;
+    pointer-events: none;
+  `;
+  
+  document.body.appendChild(scorePopup);
+  
+  setTimeout(() => {
+    scorePopup.remove();
+  }, 2000);
 }
 
 function hideCardTooltip() {
@@ -1457,6 +1506,25 @@ function updateContextualHints(state) {
     }
   }
 }
+
+// 新增：在樣式中添加得分動畫
+const style = document.createElement('style');
+style.textContent += `
+  @keyframes scoreFloat {
+    0% {
+      transform: translateY(0) scale(1);
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(-100px) scale(1.5);
+      opacity: 0;
+    }
+  }
+  
+  .score-popup {
+    text-shadow: 0 0 10px rgba(241, 196, 15, 0.8);
+  }
+`;
 
 // 🆕 新增：更新拖拽提示
 function updateDropHint(state) {

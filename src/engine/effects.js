@@ -299,9 +299,9 @@ export class EffectProcessor {
   
   // === 基礎動作處理器 ===
 
-  // 修改：applyPermanentEffects 方法 - 使用完整名稱
+  // 修改：applyPermanentEffects 方法 - 確保永久效果被正確應用
   applyPermanentEffects(card) {
-    // 直接使用完整名稱，不要簡化
+    // 從永久效果存儲中獲取
     if (this.permanentEffects.has(card.name)) {
       const effects = this.permanentEffects.get(card.name);
       card.permanentBonus = card.permanentBonus || {};
@@ -310,7 +310,12 @@ export class EffectProcessor {
         card.permanentBonus[stat] = (card.permanentBonus[stat] || 0) + effects[stat];
       });
       
-      console.log(`🔮 應用永久效果: ${card.name}`, effects);
+      console.log(`🔮 應用永久效果: ${card.name}`, card.permanentBonus);
+    }
+    
+    // 確保永久加成被保留
+    if (card.permanentBonus && Object.keys(card.permanentBonus).length > 0) {
+      console.log(`📊 ${card.name} 保留永久加成:`, card.permanentBonus);
     }
   }
 
@@ -1079,19 +1084,38 @@ export class EffectProcessor {
     return totalStats;
   }
 
+  // 修改：drawCards 方法 - 使用配置的手牌上限
   drawCards(player, count) {
-    for (let i = 0; i < count; i++) {
+    const maxHandSize = window.GAME_CONFIG?.HAND.MAX_SIZE || 7;
+    const actualCount = Math.min(count, maxHandSize - player.hand.length);
+    
+    console.log(`🎴 抽牌: 嘗試${count}張，實際${actualCount}張`);
+    
+    for (let i = 0; i < actualCount; i++) {
       if (player.deck.length === 0) {
-        if (player.discard.length === 0) break;
+        if (player.discard.length === 0) {
+          console.warn('⚠️ 牌庫和棄牌堆都是空的');
+          break;
+        }
+        
+        console.log('🔄 重新洗牌');
         player.deck = [...player.discard];
         player.discard = [];
         this.shuffleDeck(player.deck);
       }
-      if (player.deck.length > 0 && player.hand.length < (this.state.handSizeLimit || 7)) {
-        player.hand.push(player.deck.pop());
+      
+      if (player.deck.length > 0) {
+        const drawnCard = player.deck.pop();
+        
+        // 應用永久效果
+        this.applyPermanentEffects(drawnCard);
+        
+        player.hand.push(drawnCard);
+        console.log(`🎴 抽到: ${drawnCard.name}`);
       }
     }
   }
+  
 
   shuffleDeck(deck) {
     for (let i = deck.length - 1; i > 0; i--) {
