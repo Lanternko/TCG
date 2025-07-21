@@ -741,32 +741,64 @@ export class EffectProcessor {
     };
   }
 
-  // 修改：handlePowerTransfer 方法 - 使用完整名稱匹配
-  
+
+  // 修改：handlePowerTransfer 方法 - 修復睦與Mortis的死聲效果
   handlePowerTransfer(effectData, card) {
     const targetName = effectData.target;
     const stat = effectData.stat;
     const value = effectData.value;
+    
+    console.log(`💀 處理力量轉移: ${card.name} → ${targetName}`);
 
-    // 找到所有匹配的目標卡牌
+    // 修復：擴大搜索範圍，包含所有可能的位置
+    const allCards = [
+      ...this.state.player.hand,
+      ...this.state.bases.filter(Boolean),
+      ...this.state.player.deck,
+      ...this.state.player.discard
+    ];
 
-    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+    let targetFound = false;
+    let enhancedCount = 0;
+
+    allCards.forEach(targetCard => {
       if (targetCard && this.isTargetCard(targetCard, targetName)) {
-        // 直接為卡牌添加永久加成
-        targetCard.permanentBonus = targetCard.permanentBonus || {};
+        targetFound = true;
+        enhancedCount++;
+        
+        // 使用永久效果存儲
+        this.permanentEffects.set(targetCard.name, this.permanentEffects.get(targetCard.name) || {});
+        const effects = this.permanentEffects.get(targetCard.name);
+        
         if (stat === 'allStats') {
           ['power', 'hitRate', 'contact', 'speed'].forEach(s => {
+            effects[s] = (effects[s] || 0) + value;
+            // 同時更新 permanentBonus
+            targetCard.permanentBonus = targetCard.permanentBonus || {};
             targetCard.permanentBonus[s] = (targetCard.permanentBonus[s] || 0) + value;
           });
         } else {
+          effects[stat] = (effects[stat] || 0) + value;
+          // 同時更新 permanentBonus
+          targetCard.permanentBonus = targetCard.permanentBonus || {};
           targetCard.permanentBonus[stat] = (targetCard.permanentBonus[stat] || 0) + value;
         }
+        
+        console.log(`✅ ${targetCard.name} 獲得永久加成:`, targetCard.permanentBonus);
       }
     });
 
+    if (!targetFound) {
+      console.log(`⚠️ 找不到目標: ${targetName}`);
+      return {
+        success: false,
+        description: `${card.name} 的死聲：找不到 ${targetName}`
+      };
+    }
+
     return {
       success: true,
-      description: `${card.name} 為所有 ${targetName} 永久增加了 ${stat}+${value}`
+      description: `${card.name} 的死聲：為 ${enhancedCount} 張 ${targetName} 卡永久增加 ${stat}+${value}！`
     };
   }
 

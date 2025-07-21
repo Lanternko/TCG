@@ -12,6 +12,7 @@ export function initializeEffectProcessor(gameState) {
 /**
  * 增強版打擊模擬 - 整合所有新效果
  */
+// 修改：simulateAtBat 函數 - 修復 modifiedBatter 未定義錯誤
 export function simulateAtBat(batter, pitcher, state) {
   // 確保效果處理器已初始化
   if (!effectProcessor) {
@@ -97,6 +98,7 @@ export function simulateAtBat(batter, pitcher, state) {
   c += pH;
   if (r < c) {
     console.log('  結果: 安打，檢查速度');
+    // 🔧 修復：傳入正確的 modifiedBatter 物件
     return hitBySpeed(modifiedBatter.stats.speed, state, batter);
   }
   

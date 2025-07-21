@@ -981,42 +981,166 @@ function simulateSimpleAtBat(batter, pitcher) {
   }
 }
 
-// 修改：processSimpleOutcome 函數 - 修正得分邏輯
+// 修改：processSimpleOutcome 函數 - 修復得分計算
 function processSimpleOutcome(result, state, batterCard) {
+  console.log('⚾ 處理打擊結果:', result.type);
+  
   if (result.type === 'K' || result.type === 'OUT') {
     state.outs++;
-    console.log('⚾ 出局，出局數:', state.outs);
-  } else {
-    // 修改：根據結果類型確定推進距離
-    let advancement = 1; // 預設推進1壘
+    console.log('❌ 出局，出局數:', state.outs);
     
+    // 🆕 新增：處理死聲效果
+    if (batterCard.effects && batterCard.effects.death && effectProcessor) {
+      console.log('💀 觸發死聲效果:', batterCard.name);
+      const deathResult = effectProcessor.processDeathrattle(batterCard);
+      if (deathResult.success) {
+        console.log('✅ 死聲效果成功:', deathResult.description);
+        updateOutcomeText(`${batterCard.name} 的死聲: ${deathResult.description}`);
+      }
+    }
+  } else {
+    // 🔧 修復：確保使用 result 中的 adv 或計算正確的推進距離
+    let advancement = result.adv || 1;
+    
+    // 根據結果類型確定推進距離
     switch (result.type) {
       case 'HR':
-        advancement = 4; // 全壘打：所有人都得分
+        advancement = 4;
         break;
       case '3B':
-        advancement = 3; // 三壘安打：推進3壘
+        advancement = 3;
         break;
       case '2B':
-        advancement = 2; // 二壘安打：推進2壘
+        advancement = 2;
         break;
       case '1B':
       case 'BB':
-        advancement = 1; // 一壘安打/保送：推進1壘
-        break;
-      default:
         advancement = 1;
+        break;
     }
     
     console.log(`🏃 ${result.type} - 推進距離: ${advancement}`);
+    
+    // 🔧 修復：正確計算並更新得分
     const pointsScored = advanceRunners(state, batterCard, advancement);
     state.score.home += pointsScored;
     
-    console.log('🏃 壘包推進完成，得分:', pointsScored);
-    console.log('📊 當前比分:', `${state.score.away}:${state.score.home}`);
+    // 🆕 新增：根據打擊結果類型添加額外得分
+    if (result.type === 'HR') {
+      // 全壘打：打者本身也得分
+      state.score.home += 1;
+      console.log('🏠 全壘打！額外得1分');
+    }
+    
+    console.log('📊 得分更新 - 本次得分:', pointsScored, '總分:', state.score.home);
   }
 }
 
+// 修改：advanceRunners 函數 - 修正壘包推進和得分邏輯
+function advanceRunners(state, newBatter, advancement = 1) {
+  let pointsScored = 0;
+  
+  console.log('🏃 開始壘包推進...');
+  console.log('📊 推進前:', state.bases.map(b => b ? b.name : '空'));
+  console.log('🎯 推進距離:', advancement);
+  
+  // 從三壘開始處理（從後往前）
+  for (let i = 2; i >= 0; i--) {
+    const runner = state.bases[i];
+    if (runner) {
+      const newPosition = i + advancement;
+      
+      if (newPosition >= 3) {
+        // 得分
+        if (!runner.locked) {
+          console.log(`🏠 ${runner.name} 從 ${i + 1} 壘得分！`);
+          
+          // 🆕 新增：處理得分時的死聲效果
+          if (runner.effects && runner.effects.death && effectProcessor) {
+            console.log('💀 得分時觸發死聲效果:', runner.name);
+            effectProcessor.processDeathrattle(runner);
+          }
+          
+          state.player.discard.push(runner);
+          pointsScored++;
+          state.bases[i] = null;
+        } else {
+          console.log(`🔒 ${runner.name} 被鎖定，無法得分`);
+        }
+      } else {
+        // 推進到新壘包
+        if (!runner.locked) {
+          if (!state.bases[newPosition]) {
+            console.log(`🏃 ${runner.name} 從 ${i + 1} 壘推進到 ${newPosition + 1} 壘`);
+            state.bases[newPosition] = runner;
+            state.bases[i] = null;
+          } else {
+            // 壘包擁擠，檢查是否可以繼續推進
+            if (newPosition + 1 <= 2 && !state.bases[newPosition + 1]) {
+              console.log(`🏃 ${runner.name} 因壘包擁擠，推進到 ${newPosition + 2} 壘`);
+              state.bases[newPosition + 1] = runner;
+              state.bases[i] = null;
+            } else {
+              // 無法推進，得分
+              console.log(`🏠 ${runner.name} 因壘包擁擠得分！`);
+              
+              // 🆕 新增：處理得分時的死聲效果
+              if (runner.effects && runner.effects.death && effectProcessor) {
+                effectProcessor.processDeathrattle(runner);
+              }
+              
+              state.player.discard.push(runner);
+              pointsScored++;
+              state.bases[i] = null;
+            }
+          }
+        } else {
+          console.log(`🔒 ${runner.name} 被鎖定，無法推進`);
+        }
+      }
+    }
+  }
+  
+  // 放置新打者
+  if (advancement === 4) {
+    // 全壘打：新打者不上壘，直接計入棄牌堆
+    console.log(`🏠 ${newBatter.name} 全壘打，直接得分！`);
+    state.player.discard.push(newBatter);
+    // 注意：全壘打得分已在 processSimpleOutcome 中處理
+  } else {
+    // 其他情況：嘗試將新打者放到對應壘包
+    const targetBase = advancement - 1; // 0=1B, 1=2B, 2=3B
+    if (targetBase >= 0 && targetBase <= 2 && !state.bases[targetBase]) {
+      console.log(`🏃 ${newBatter.name} 上 ${targetBase + 1} 壘`);
+      state.bases[targetBase] = newBatter;
+    } else {
+      // 目標壘包被佔用，嘗試下一個壘包
+      let placed = false;
+      for (let i = targetBase + 1; i <= 2; i++) {
+        if (!state.bases[i]) {
+          console.log(`🏃 ${newBatter.name} 因壘包擁擠，上 ${i + 1} 壘`);
+          state.bases[i] = newBatter;
+          placed = true;
+          break;
+        }
+      }
+      
+      if (!placed) {
+        // 所有壘包都滿了，新打者得分
+        console.log(`🏠 ${newBatter.name} 因壘包滿而直接得分！`);
+        state.player.discard.push(newBatter);
+        pointsScored++;
+      }
+    }
+  }
+  
+  console.log('📊 推進後:', state.bases.map(b => b ? b.name : '空'));
+  console.log('⚾ 本次得分:', pointsScored);
+  
+  return pointsScored;
+}
+
+// 修改：prepareCard 函數 - 確保永久加成被正確應用
 function prepareCard(cardData) {
   const card = { ...cardData };
   
@@ -1024,6 +1148,7 @@ function prepareCard(cardData) {
   card.permanentBonus = card.permanentBonus || {};
   card.tempBonus = card.tempBonus || {};
   
+  // 計算基礎 OVR
   if (card.type === 'batter') {
     card.ovr = calculateBatterOVR(card.stats);
   } else if (card.type === 'pitcher') {
@@ -1035,9 +1160,62 @@ function prepareCard(cardData) {
   // 🆕 新增：應用永久效果（如果有的話）
   if (effectProcessor) {
     effectProcessor.applyPermanentEffects(card);
+    
+    // 🔧 修復：確保永久加成被應用到計算後的數值
+    if (card.permanentBonus && Object.keys(card.permanentBonus).length > 0) {
+      console.log(`📊 ${card.name} 的永久加成:`, card.permanentBonus);
+    }
   }
   
   return card;
+}
+
+// 修改：draw 函數 - 確保抽牌時應用永久效果
+function draw(player, numToDraw) {
+  console.log('🎴 開始抽牌:', numToDraw, '張');
+  console.log('📊 抽牌前 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
+  
+  if (player.hand.length >= 7) {
+    console.log('⚠️ 手牌已達上限 (7張)，停止抽牌');
+    return;
+  }
+  
+  const actualDrawCount = Math.min(numToDraw, 7 - player.hand.length);
+  console.log('🎴 實際抽牌數量:', actualDrawCount);
+  
+  for (let i = 0; i < actualDrawCount; i++) {
+    if (player.deck.length === 0) {
+      if (player.discard.length === 0) {
+        console.warn('⚠️ 牌庫和棄牌堆都是空的，無法抽牌');
+        break;
+      }
+      
+      console.log('🔄 牌庫空了，從棄牌堆重新洗牌');
+      player.deck = [...player.discard];
+      player.discard = [];
+      shuffle(player.deck);
+      console.log('🔀 重新洗牌完成，牌庫數量:', player.deck.length);
+    }
+    
+    if (player.deck.length > 0) {
+      const drawnCard = player.deck.pop();
+      
+      // 🆕 新增：應用永久效果到新抽的卡牌
+      if (effectProcessor) {
+        effectProcessor.applyPermanentEffects(drawnCard);
+        
+        // 🔧 修復：確保永久加成被保留
+        if (drawnCard.permanentBonus && Object.keys(drawnCard.permanentBonus).length > 0) {
+          console.log(`✨ ${drawnCard.name} 保留永久加成:`, drawnCard.permanentBonus);
+        }
+      }
+      
+      player.hand.push(drawnCard);
+      console.log('🎴 抽到:', drawnCard.name);
+    }
+  }
+  
+  console.log('📊 抽牌後 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
 }
 
 function calculateBatterOVR(stats) {
@@ -1080,47 +1258,7 @@ function calculatePitcherOVR(stats) {
   return Math.max(40, Math.min(99, ovr));
 }
 
-function draw(player, numToDraw) {
-  console.log('🎴 開始抽牌:', numToDraw, '張');
-  console.log('📊 抽牌前 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
-  
-  if (player.hand.length >= 7) {
-    console.log('⚠️ 手牌已達上限 (7張)，停止抽牌');
-    return;
-  }
-  
-  const actualDrawCount = Math.min(numToDraw, 7 - player.hand.length);
-  console.log('🎴 實際抽牌數量:', actualDrawCount);
-  
-  for (let i = 0; i < actualDrawCount; i++) {
-    if (player.deck.length === 0) {
-      if (player.discard.length === 0) {
-        console.warn('⚠️ 牌庫和棄牌堆都是空的，無法抽牌');
-        break;
-      }
-      
-      console.log('🔄 牌庫空了，從棄牌堆重新洗牌');
-      player.deck = [...player.discard];
-      player.discard = [];
-      shuffle(player.deck);
-      console.log('🔀 重新洗牌完成，牌庫數量:', player.deck.length);
-    }
-    
-    if (player.deck.length > 0) {
-      const drawnCard = player.deck.pop();
-      
-      // 🆕 新增：應用永久效果到新抽的卡牌
-      if (effectProcessor) {
-        effectProcessor.applyPermanentEffects(drawnCard);
-      }
-      
-      player.hand.push(drawnCard);
-      console.log('🎴 抽到:', drawnCard.name);
-    }
-  }
-  
-  console.log('📊 抽牌後 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
-}
+
 
 function shuffle(deck) {
   for (let i = deck.length - 1; i > 0; i--) {
@@ -1139,74 +1277,7 @@ function showErrorMessage(message) {
   console.error('🚨 顯示錯誤訊息:', message);
 }
 
-// 修改：advanceRunners 函數 - 修正得分計算
-function advanceRunners(state, newBatter, advancement = 1) {
-  let pointsScored = 0;
-  
-  console.log('🏃 開始壘包推進...');
-  console.log('📊 推進前:', state.bases.map(b => b ? b.name : '空'));
-  console.log('🎯 推進距離:', advancement);
-  
-  // 從三壘開始處理（從後往前）
-  for (let i = 2; i >= 0; i--) {
-    const runner = state.bases[i];
-    if (runner) {
-      const newPosition = i + advancement;
-      
-      if (newPosition >= 3) {
-        // 得分
-        if (!runner.locked) {
-          console.log(`🏠 ${runner.name} 從 ${i + 1} 壘得分！`);
-          state.player.discard.push(runner);
-          pointsScored++;
-          state.bases[i] = null;
-        } else {
-          console.log(`🔒 ${runner.name} 被鎖定，無法得分`);
-        }
-      } else {
-        // 推進到新壘包
-        if (!runner.locked) {
-          if (!state.bases[newPosition]) {
-            console.log(`🏃 ${runner.name} 從 ${i + 1} 壘推進到 ${newPosition + 1} 壘`);
-            state.bases[newPosition] = runner;
-            state.bases[i] = null;
-          } else {
-            // 壘包擁擠，原跑者得分
-            console.log(`🏠 ${runner.name} 因壘包擁擠得分！`);
-            state.player.discard.push(runner);
-            pointsScored++;
-            state.bases[i] = null;
-          }
-        } else {
-          console.log(`🔒 ${runner.name} 被鎖定，無法推進`);
-        }
-      }
-    }
-  }
-  
-  // 放置新打者
-  let batterPlaced = false;
-  for (let i = 0; i < Math.min(3, advancement); i++) {
-    if (!state.bases[i]) {
-      console.log(`🏃 ${newBatter.name} 上 ${i + 1} 壘`);
-      state.bases[i] = newBatter;
-      batterPlaced = true;
-      break;
-    }
-  }
-  
-  // 如果沒有空壘包，新打者直接得分
-  if (!batterPlaced) {
-    console.log(`🏠 ${newBatter.name} 因壘包滿而直接得分！`);
-    state.player.discard.push(newBatter);
-    pointsScored++;
-  }
-  
-  console.log('📊 推進後:', state.bases.map(b => b ? b.name : '空'));
-  console.log('⚾ 本次得分:', pointsScored);
-  
-  return pointsScored;
-}
+
 
 function applyEndOfInningPenalty(state) {
   console.log('⚖️ 執行局末懲罰規則...');

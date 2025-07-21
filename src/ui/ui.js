@@ -215,7 +215,7 @@ function renderHand(hand, selectedIndex, handlers) {
   });
 }
 
-// 🔧 修改：createCardElement 函數 - 顯示動態 OVR
+// 修改：createCardElement 函數 - 顯示永久加成
 function createCardElement(card, index, selectedIndex, handlers) {
   const cardEl = document.createElement('div');
   cardEl.className = 'card hand-card';
@@ -238,7 +238,8 @@ function createCardElement(card, index, selectedIndex, handlers) {
   
   let cardStats = '';
   if (card.type === 'batter') {
-    const hasBonus = hasTempBonus(card);
+    // 🔧 修復：檢查是否有任何加成（永久或臨時）
+    const hasBonus = hasTempBonus(card) || hasPermanentBonus(card);
     const statsClass = hasBonus ? 'card-stats buffed' : 'card-stats';
     
     cardStats = `
@@ -252,9 +253,17 @@ function createCardElement(card, index, selectedIndex, handlers) {
   const description = getCardDescription(card);
   const instrument = card.instrument ? `<div class="card-instrument">🎵 ${card.instrument}</div>` : '';
   const band = card.band ? `<div class="card-band">${card.band}</div>` : '';
-  const bonusIndicator = hasTempBonus(card) ? '<div class="bonus-indicator">✨</div>' : '';
   
-  // 🔧 修復：顯示動態 OVR，如果有變化則特別標示
+  // 🔧 修復：顯示永久和臨時加成指示器
+  let bonusIndicator = '';
+  if (hasPermanentBonus(card)) {
+    bonusIndicator += '<div class="permanent-bonus-indicator">💎</div>';
+  }
+  if (hasTempBonus(card)) {
+    bonusIndicator += '<div class="bonus-indicator">✨</div>';
+  }
+  
+  // 顯示動態 OVR，如果有變化則特別標示
   const ovrClass = dynamicOVR !== card.ovr ? 'card-ovr dynamic' : 'card-ovr';
   
   cardEl.innerHTML = `
@@ -271,6 +280,12 @@ function createCardElement(card, index, selectedIndex, handlers) {
   setupCardEvents(cardEl, card, index, handlers);
   
   return cardEl;
+}
+
+// 新增：檢查是否有永久加成
+function hasPermanentBonus(card) {
+  return card.permanentBonus && Object.keys(card.permanentBonus).length > 0 && 
+         Object.values(card.permanentBonus).some(v => v !== 0);
 }
 
 function setupCardEvents(cardEl, card, index, handlers) {
@@ -417,11 +432,20 @@ function hideCardTooltip() {
   }
 }
 
-// 🔧 修改：calculateDynamicStats 函數 - 添加動態 OVR 計算
+// 修改：calculateDynamicStats 函數 - 包含永久加成
 function calculateDynamicStats(card) {
   if (!card.stats) return {};
   
   const baseStats = { ...card.stats };
+  
+  // 🔧 修復：應用永久加成
+  if (card.permanentBonus) {
+    Object.keys(card.permanentBonus).forEach(stat => {
+      if (baseStats[stat] !== undefined) {
+        baseStats[stat] += card.permanentBonus[stat];
+      }
+    });
+  }
   
   // 應用臨時加成
   if (card.tempBonus) {
@@ -987,7 +1011,35 @@ export function initializeUIEnhancements() {
   
   // 添加增強樣式
   const style = document.createElement('style');
+  
+  // ✅ 修正：將所有 CSS 規則都放置在反引號 (``) 內
   style.textContent = `
+    /* --- 永久加成指示器 (新增的樣式) --- */
+    .permanent-bonus-indicator {
+      position: absolute;
+      top: 5px;
+      right: 30px; /* 放在 OVR 指示器的左邊 */
+      font-size: 0.8rem;
+      color: #9b59b6; /* 紫色，代表神秘與永久 */
+      animation: permanentGlow 3s infinite;
+      z-index: 10;
+    }
+
+    @keyframes permanentGlow {
+      0%, 100% { 
+        opacity: 0.7; 
+        transform: scale(1); 
+        text-shadow: 0 0 4px rgba(155, 89, 182, 0.5);
+      }
+      50% { 
+        opacity: 1; 
+        transform: scale(1.2); 
+        text-shadow: 0 0 8px rgba(155, 89, 182, 1);
+      }
+    }
+
+    /* --- 原有的其他樣式 --- */
+
     /* 記錄面板樣式 */
     .game-log-panel {
       background: rgba(0,0,0,0.9) !important;
