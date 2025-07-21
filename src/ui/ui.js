@@ -338,22 +338,23 @@ function showCardTooltip(card, x, y) {
   currentTooltip = document.createElement('div');
   currentTooltip.className = 'card-tooltip';
   currentTooltip.style.cssText = `
-    position: absolute;
+    position: fixed !important;
     left: ${Math.min(x + 15, window.innerWidth - 350)}px;
     top: ${Math.max(y - 100, 10)}px;
-    background: rgba(0,0,0,0.95);
-    color: #fff;
-    padding: 1.2rem 1.8rem;
-    border-radius: 12px;
-    border: 2px solid #4a5a6a;
-    font-size: 0.9rem;
-    max-width: 350px;
-    word-wrap: break-word;
-    z-index: 2000;
-    box-shadow: 0 8px 25px rgba(0,0,0,0.6);
-    backdrop-filter: blur(8px);
-    pointer-events: none;
-    font-family: 'Inter', sans-serif;
+    background: rgba(0,0,0,0.95) !important;
+    color: #fff !important;
+    padding: 1.5rem 2rem !important;
+    border-radius: 12px !important;
+    border: 2px solid #4a5a6a !important;
+    font-size: 1rem !important;
+    max-width: 400px !important;
+    word-wrap: break-word !important;
+    z-index: 10000 !important;
+    box-shadow: 0 8px 25px rgba(0,0,0,0.8) !important;
+    backdrop-filter: blur(8px) !important;
+    pointer-events: none !important;
+    transition: opacity 0.2s ease !important;
+    font-family: 'Inter', sans-serif !important;
   `;
   
   let tooltipContent = `<strong style="color: #f1c40f; font-size: 1rem;">${card.name}</strong><br>`;

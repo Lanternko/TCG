@@ -168,6 +168,14 @@ export class EffectProcessor {
     this.register(EFFECT_KEYWORDS.COPY, this.handleCopy.bind(this));
     this.register(EFFECT_KEYWORDS.DESTROY, this.handleDestroy.bind(this));
     this.register(EFFECT_KEYWORDS.SACRIFICE, this.handleSacrifice.bind(this));
+
+    // 特殊動作效果
+    this.register('lockCharacter', this.handleLockCharacter.bind(this));
+    this.register('boostUika', this.handleBoostUika.bind(this));
+    this.register('boostMortis', this.handleBoostMortis.bind(this));
+    this.register('peekAndRearrange', this.handlePeekAndRearrange.bind(this));
+    this.register('buffNextCard', this.handleBuffNextCard.bind(this));
+    this.register('shuffleDiscardIntoDeck', this.handleShuffleDiscardIntoDeck.bind(this));
   }
 
   /**
@@ -242,6 +250,8 @@ export class EffectProcessor {
       switch (condition) {
         case 'basesEmpty':
           return this.state.bases.every(base => base === null);
+        case 'onBase':
+          return this.state.bases.some(base => base && base.name === card.name);
         case 'mygoMembersOnBase':
           return this.state.bases.some(base => base && base.band === 'MyGO!!!!!');
         case 'tomoriOnBase':
@@ -272,6 +282,7 @@ export class EffectProcessor {
     
     return true;
   }
+
 
   
   // === 基礎動作處理器 ===
@@ -400,6 +411,123 @@ export class EffectProcessor {
     this.shuffleDeck(this.state.player.deck);
     return { success: true, description: `牌庫已洗勻` };
   }
+  // 新增：handleLockCharacter 處理器
+  handleLockCharacter(effectData, card) {
+    // 由於目標已在 main.js 中設置，直接從 effectData 獲取
+    const targetCard = effectData.targetCard;
+    const targetIndex = effectData.targetIndex;
+    
+    if (!targetCard) {
+      return { success: false, reason: '沒有目標角色' };
+    }
+    
+    targetCard.locked = true;
+    console.log(`🔒 角色被鎖定: ${targetCard.name} 在 ${targetIndex + 1} 壘`);
+    
+    return {
+      success: true,
+      description: `${targetCard.name} 被鎖定在 ${targetIndex + 1} 壘上！一輩子...`
+    };
+  }
+
+  // 新增：handleBoostUika 處理器 (真奈的死聲效果)
+  handleBoostUika(effectData, card) {
+    // 為初華永久增加數值
+    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+      if (targetCard && targetCard.name.includes('初華')) {
+        targetCard.permanentBonus = targetCard.permanentBonus || {};
+        ['power', 'hitRate', 'contact', 'speed'].forEach(stat => {
+          targetCard.permanentBonus[stat] = (targetCard.permanentBonus[stat] || 0) + 5;
+        });
+      }
+    });
+    
+    return {
+      success: true,
+      description: `${card.name} 的二人一體：初華獲得永久全數值+5！`
+    };
+  }
+
+  // 新增：handleBoostMortis 處理器 (睦的死聲效果)
+  handleBoostMortis(effectData, card) {
+    // 為Mortis永久增加力量
+    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+      if (targetCard && targetCard.name === 'Mortis') {
+        targetCard.permanentBonus = targetCard.permanentBonus || {};
+        targetCard.permanentBonus.power = (targetCard.permanentBonus.power || 0) + 10;
+      }
+    });
+    
+    return {
+      success: true,
+      description: `${card.name} 的死聲：Mortis力量永久+10！`
+    };
+  }
+
+  // 新增：handlePeekAndRearrange 處理器 (海鈴的戰吼)
+  handlePeekAndRearrange(effectData, card) {
+    const peekCount = effectData.value || 3;
+    const topCards = this.state.player.deck.slice(-peekCount);
+    
+    console.log(`🔍 ${card.name} 檢視了牌庫頂的 ${peekCount} 張牌:`, topCards.map(c => c.name));
+    
+    return {
+      success: true,
+      description: `${card.name} 檢視並重新排列了牌庫頂的 ${peekCount} 張牌`
+    };
+  }
+
+  // 新增：handleBuffNextCard 處理器 (海鈴的死聲)
+  handleBuffNextCard(effectData, card) {
+    // 為下一張打出的卡牌設置加成
+    this.nextCardBuffs.push({
+      source: card.name,
+      stat: effectData.stat,
+      value: effectData.value,
+      duration: 'atBat',
+      description: '經驗傳承效果'
+    });
+    
+    return {
+      success: true,
+      description: `${card.name} 的經驗將傳承給下一張卡牌 (${effectData.stat}+${effectData.value})`
+    };
+  }
+
+  // 新增：handleShuffleDiscardIntoDeck 處理器 (CRYCHIC卡)
+  handleShuffleDiscardIntoDeck(effectData, card) {
+    // 檢查棄牌堆中不同角色卡的數量
+    const characterCards = this.state.player.discard.filter(c => c.type === 'batter');
+    const uniqueNames = new Set(characterCards.map(c => c.name));
+    
+    if (uniqueNames.size < 5) {
+      return { 
+        success: false, 
+        reason: `棄牌堆中只有 ${uniqueNames.size} 種不同角色卡，需要至少 5 種` 
+      };
+    }
+    
+    // 將棄牌堆中的角色卡洗入牌庫
+    const charactersToShuffle = this.state.player.discard.filter(c => c.type === 'batter');
+    charactersToShuffle.forEach(c => {
+      const index = this.state.player.discard.indexOf(c);
+      if (index > -1) {
+        this.state.player.discard.splice(index, 1);
+        this.state.player.deck.push(c);
+      }
+    });
+    
+    // 洗勻牌庫
+    this.shuffleDeck(this.state.player.deck);
+    
+    // 手牌上限+1
+    this.state.handSizeLimit = (this.state.handSizeLimit || 7) + 1;
+    
+    return {
+      success: true,
+      description: `CRYCHIC：將 ${charactersToShuffle.length} 張角色卡洗入牌庫，手牌上限永久+1！`
+    };
+  }
 
   // === 條件效果處理器 ===
 
@@ -451,6 +579,7 @@ export class EffectProcessor {
     }
     return { success: false, reason: '未知的動作類型' };
   }
+
 
   // 新增：handleDiscardThenDraw 處理器
   handleDiscardThenDraw(effectData, card) {

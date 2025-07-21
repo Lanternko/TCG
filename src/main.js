@@ -948,15 +948,37 @@ function simulateSimpleAtBat(batter, pitcher) {
   }
 }
 
+// 修改：processSimpleOutcome 函數 - 確保正確得分
 function processSimpleOutcome(result, state, batterCard) {
   if (result.type === 'K' || result.type === 'OUT') {
     state.outs++;
     console.log('⚾ 出局，出局數:', state.outs);
   } else {
-    const pointsScored = advanceRunners(state, batterCard);
+    // 修改：確保使用正確的推進距離
+    let advancement = 1; // 預設推進1壘
+    
+    switch (result.type) {
+      case 'HR':
+        advancement = 4;
+        break;
+      case '3B':
+        advancement = 3;
+        break;
+      case '2B':
+        advancement = 2;
+        break;
+      case '1B':
+      case 'BB':
+        advancement = 1;
+        break;
+    }
+    
+    console.log(`🏃 開始推進，距離: ${advancement}`);
+    const pointsScored = advanceRunners(state, batterCard, advancement);
     state.score.home += pointsScored;
     
     console.log('🏃 壘包推進完成，得分:', pointsScored);
+    console.log('📊 當前比分:', `${state.score.away}:${state.score.home}`);
   }
 }
 
@@ -1082,82 +1104,67 @@ function showErrorMessage(message) {
   console.error('🚨 顯示錯誤訊息:', message);
 }
 
-function advanceRunners(state, newBatter) {
+// 修改：advanceRunners 函數 - 修正得分計算
+function advanceRunners(state, newBatter, advancement = 1) {
   let pointsScored = 0;
   
   console.log('🏃 開始壘包推進...');
   console.log('📊 推進前:', state.bases.map(b => b ? b.name : '空'));
+  console.log('🎯 推進距離:', advancement);
   
-  if (state.bases[2]) {
-    const thirdBaseRunner = state.bases[2];
-    if (!thirdBaseRunner.locked) {
-      console.log('🏠 三壘跑者回到本壘:', thirdBaseRunner.name);
+  // 從三壘開始處理（從後往前）
+  for (let i = 2; i >= 0; i--) {
+    const runner = state.bases[i];
+    if (runner) {
+      const newPosition = i + advancement;
       
-      // 🆕 新增：處理得分角色的死聲效果
-      if (thirdBaseRunner.effects && thirdBaseRunner.effects.death && effectProcessor) {
-        console.log('💀 得分時觸發死聲效果:', thirdBaseRunner.name);
-        const deathResult = effectProcessor.processDeathrattle(thirdBaseRunner);
-        if (deathResult.success) {
-          console.log('✅ 得分死聲效果成功:', deathResult.description);
+      if (newPosition >= 3) {
+        // 得分
+        if (!runner.locked) {
+          console.log(`🏠 ${runner.name} 從 ${i + 1} 壘得分！`);
+          state.player.discard.push(runner);
+          pointsScored++;
+          state.bases[i] = null;
+        } else {
+          console.log(`🔒 ${runner.name} 被鎖定，無法得分`);
+        }
+      } else {
+        // 推進到新壘包
+        if (!runner.locked) {
+          if (!state.bases[newPosition]) {
+            console.log(`🏃 ${runner.name} 從 ${i + 1} 壘推進到 ${newPosition + 1} 壘`);
+            state.bases[newPosition] = runner;
+            state.bases[i] = null;
+          } else {
+            // 壘包擁擠，原跑者得分
+            console.log(`🏠 ${runner.name} 因壘包擁擠得分！`);
+            state.player.discard.push(runner);
+            pointsScored++;
+            state.bases[i] = null;
+          }
+        } else {
+          console.log(`🔒 ${runner.name} 被鎖定，無法推進`);
         }
       }
-      
-      state.player.discard.push(thirdBaseRunner);
-      pointsScored += 1;
-      state.bases[2] = null;
-    } else {
-      console.log('🔒 三壘跑者被鎖定，無法得分:', thirdBaseRunner.name);
     }
   }
   
-  if (state.bases[1] && !state.bases[2]) { 
-    const secondBaseRunner = state.bases[1];
-    if (!secondBaseRunner.locked) {
-      console.log('🏃 二壘跑者推進到三壘:', secondBaseRunner.name);
-      state.bases[2] = secondBaseRunner;
-      state.bases[1] = null;
-    } else {
-      console.log('🔒 二壘跑者被鎖定，無法推進:', secondBaseRunner.name);
+  // 放置新打者
+  let batterPlaced = false;
+  for (let i = 0; i < Math.min(3, advancement); i++) {
+    if (!state.bases[i]) {
+      console.log(`🏃 ${newBatter.name} 上 ${i + 1} 壘`);
+      state.bases[i] = newBatter;
+      batterPlaced = true;
+      break;
     }
   }
   
-  if (state.bases[0] && !state.bases[1]) { 
-    const firstBaseRunner = state.bases[0];
-    if (!firstBaseRunner.locked) {
-      console.log('🏃 一壘跑者推進到二壘:', firstBaseRunner.name);
-      state.bases[1] = firstBaseRunner;
-      state.bases[0] = null;
-    } else {
-      console.log('🔒 一壘跑者被鎖定，無法推進:', firstBaseRunner.name);
-    }
-  }
-  
-  if (!state.bases[0]) {
-    console.log('🏃 新打者上一壘:', newBatter.name);
-    state.bases[0] = newBatter;
-    
-    // 🆕 新增：處理上壘時的光環效果
-    if (newBatter.effects && newBatter.effects.aura && effectProcessor) {
-      console.log('🌟 上壘時觸發光環效果:', newBatter.name);
-      const auraResult = effectProcessor.processAura(newBatter);
-      if (auraResult.success) {
-        console.log('✅ 光環效果成功:', auraResult.description);
-      }
-    }
-  } else {
-    console.log('🏠 一壘被佔，新打者直接得分:', newBatter.name);
-    
-    // 🆕 新增：處理直接得分的死聲效果
-    if (newBatter.effects && newBatter.effects.death && effectProcessor) {
-      console.log('💀 直接得分時觸發死聲效果:', newBatter.name);
-      const deathResult = effectProcessor.processDeathrattle(newBatter);
-      if (deathResult.success) {
-        console.log('✅ 直接得分死聲效果成功:', deathResult.description);
-      }
-    }
-    
+  // 如果沒有空壘包，新打者直接得分
+  if (!batterPlaced) {
+    console.log(`🏠 ${newBatter.name} 因壘包滿而直接得分！`);
     state.player.discard.push(newBatter);
-    pointsScored += 1;
+    pointsScored++;
   }
   
   console.log('📊 推進後:', state.bases.map(b => b ? b.name : '空'));
