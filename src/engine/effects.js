@@ -770,51 +770,63 @@ export class EffectProcessor {
     };
   }
 
-  // 修復問題2：修復 handleTargetSpecific 方法，正確搜尋所有位置的目標
+  /**
+   * 處理針對特定名稱卡牌效果的函式 (完整重寫版)
+   * @param {object} effectData - 效果的具體數據，如目標名稱、數值
+   * @param {object} card - 發動此效果的卡牌本身（例如「抹茶芭菲」）
+   */
   handleTargetSpecific(effectData, card) {
-    const targetName = effectData.target;
-    
-    // 🔧 修復：搜尋所有位置的目標卡牌，包括牌庫
-    const allTargets = [
-      ...this.state.player.hand,
-      ...this.state.bases.filter(Boolean),
-      ...this.state.player.deck, // 確保包含牌庫
-      ...this.state.player.discard
-    ].filter(c => this.isTargetCard(c, targetName));
+    // --- 第 1 步：從效果數據中獲取目標名稱 ---
+    const targetName = effectData.target; // 例如 "樂奈"
   
-    console.log(`🎯 搜尋 ${targetName}:`, {
-      手牌: this.state.player.hand.filter(c => this.isTargetCard(c, targetName)).length,
-      壘上: this.state.bases.filter(c => c && this.isTargetCard(c, targetName)).length,
-      牌庫: this.state.player.deck.filter(c => this.isTargetCard(c, targetName)).length,
-      棄牌: this.state.player.discard.filter(c => this.isTargetCard(c, targetName)).length,
-      總計: allTargets.length
-    });
-  
-    if (allTargets.length === 0) {
-      return { success: false, reason: `找不到 ${targetName}` };
+    // 防禦性檢查：如果效果沒有指定目標，則中止
+    if (!targetName) {
+      return { success: false, reason: '效果缺少 target 屬性' };
     }
   
-    // 為所有找到的目標應用效果
-    allTargets.forEach(target => {
+    // --- 第 2 步：建立一個涵蓋所有可能區域的「超級陣列」---
+    // 這是本次修正的核心：我們將所有需要被效果影響的區域
+    // (手牌、壘包、牌庫、棄牌堆) 全部合併到一個陣列中，以便進行一次性搜索。
+    const allPlayerCards = [
+      ...this.state.player.hand,       // 搜索「手牌」
+      ...this.state.bases.filter(Boolean), // 搜索「壘包上」的跑者 (使用 filter 過濾掉空壘包)
+      ...this.state.player.deck,       // 搜索「牌庫中」的所有卡牌
+      ...this.state.player.discard     // 搜索「棄牌堆中」的所有卡牌
+    ];
+  
+    // --- 第 3 步：從「超級陣列」中，篩選出所有符合目標名稱的卡牌 ---
+    const targets = allPlayerCards.filter(c => this.isTargetCard(c, targetName));
+  
+    // 如果一張都沒找到，就回報失敗並中止
+    if (targets.length === 0) {
+      return { success: false, reason: `在任何地方都找不到 ${targetName}` };
+    }
+  
+    console.log(`🔍 找到了 ${targets.length} 張 '${targetName}'，準備施加效果...`);
+  
+    // --- 第 4 步：遍歷所有找到的目標，為它們加上效果 ---
+    targets.forEach(target => {
+      // 確保目標卡上有 tempBonus 物件可用
       target.tempBonus = target.tempBonus || {};
-      const statsToBuff = effectData.stat === 'allStats' ? 
-        ['power', 'hitRate', 'contact', 'speed'] : [effectData.stat];
       
+      const statsToBuff = effectData.stat === 'allStats' ? ['power', 'hitRate', 'contact', 'speed'] : [effectData.stat];
+      
+      // 為指定的數值加上效果值
       statsToBuff.forEach(s => {
-        target.tempBonus[s] = (target.tempBonus[s] || 0) + effectData.value;
+          target.tempBonus[s] = (target.tempBonus[s] || 0) + effectData.value;
       });
-      
-      console.log(`✨ ${target.name} 獲得 ${effectData.stat}+${effectData.value}`);
     });
   
-    // 處理額外效果
+    // --- 第 5 步：處理額外的獎勵效果（如果有的話）---
+    // 例如，有些卡可能在強化隊友後，還能讓你抽一張牌
     if (effectData.bonusEffect) {
       this.processEffect(card, effectData.bonusEffect, 'bonus');
     }
   
+    // --- 第 6 步：回報成功 ---
     return {
       success: true,
-      description: `強化了 ${allTargets.length} 張 ${targetName} 卡 (遊戲中所有位置)`
+      description: `強化了所有位於任何地方的 ${targetName} 卡牌`
     };
   }
 
@@ -984,7 +996,10 @@ export class EffectProcessor {
 
   // 修復問題4：在多個可能出現 toLowerCase 錯誤的地方添加安全檢查
   isTargetCard(card, targetName) {
-    if (!card || !card.name || !targetName) return false;
+    // 👇 新增的防禦性程式碼
+    if (!targetName || !card?.name) {
+      return false;
+    }
     
     try {
       // 🔧 修復：安全的字符串轉換，防止 toLowerCase 錯誤

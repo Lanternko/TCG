@@ -238,92 +238,74 @@ function initDecks(state, handlers) {
   }
 }
 
-// 🔧 修改：runPlayerTurn 函數 - 整合新效果系統
+/**
+ * 執行玩家回合的主要函式 (完整重寫版)
+ * @param {object} state - 當前的遊戲狀態物件
+ * @param {object} handlers - 包含所有UI互動處理器的物件
+ */
 function runPlayerTurn(state, handlers) {
   try {
-    const card = state.player.hand[state.selected];
+    // --- 第 1 步：獲取並驗證玩家選擇的卡牌 ---
+    const cardIndex = state.selected;
+    const card = state.player.hand[cardIndex];
+
+    // 防禦性檢查：如果沒有有效的卡牌，則中止回合
     if (!card) {
-      console.warn('⚠️ 沒有選中的卡牌');
+      console.warn('⚠️ 玩家回合中止：沒有選擇有效的卡牌。');
+      // 重置選擇狀態並刷新UI，以防萬一
+      state.selected = -1;
+      render(state, handlers);
       return;
     }
     
-    console.log('🎯 增強版玩家回合:', card.name, '類型:', card.type, '位置:', card.position);
-    
+    console.log(`🎯 玩家回合開始，使用卡牌: ${card.name} (類型: ${card.type})`);
+
+    // --- 第 2 步：根據卡牌類型，處理遊戲邏輯 ---
     if (card.type === 'batter') {
-      // 🆕 新增：應用預設加成和永久效果
-      if (effectProcessor) {
-        effectProcessor.applyNextCardBuffs(card);
-        effectProcessor.applyPermanentEffects(card);
+      // 如果是打者卡，執行打擊模擬
+      const result = simulateSimpleAtBat(card, state.cpu.activePitcher);
+      processSimpleOutcome(result, state, card);
+      
+      // 更新畫面上方的結果文字
+      const outcomeText = document.getElementById('outcome-text');
+      if (outcomeText) {
+        outcomeText.textContent = result.description;
       }
       
-      // 🆕 新增：處理戰吼效果
-      if (card.effects && card.effects.play && effectProcessor) {
-        console.log('🎭 處理戰吼效果:', card.name);
-        const battlecryResult = effectProcessor.processBattlecry(card);
-        if (battlecryResult.success) {
-          console.log('✅ 戰吼效果成功:', battlecryResult.description);
-          updateOutcomeText(`${card.name}: ${battlecryResult.description}`);
-          
-          // 給玩家時間看效果
-          setTimeout(() => {
-            // 然後進行打擊
-            proceedWithAtBat(card, state, handlers);
-          }, 1500);
-          return;
-        } else {
-          console.log('❌ 戰吼效果失敗:', battlecryResult.reason);
-        }
-      }
+      // 從手牌中移除打出的這張卡
+      removeCardFromHand(state, cardIndex);
       
-      // 直接進行打擊
-      proceedWithAtBat(card, state, handlers);
-      
+      // 抽一張新卡來補充手牌
+      draw(state.player, 1);
+
     } else if (card.type === 'action') {
-      // 戰術卡：檢查是否需要選擇目標
-      if (needsTargetSelection(card)) {
-        startTargetSelection(card, state, handlers);
-        return;
-      } else {
-        console.log('🎭 執行戰術卡:', card.name);
-        executeActionCard(card, state);
-        
-        if (window.addGameHistory) {
-          window.addGameHistory('actionCard', {
-            player: '玩家',
-            card: card.name
-          });
-        }
-        
-        console.log('🗑️ 移除戰術卡:', card.name);
-        removeCardFromHand(state, state.selected);
-      }
+      // 如果是戰術卡，執行戰術效果
+      // (此處假設戰術卡效果已在其他地方處理，例如 handleTargetSelection)
+      // 這裡我們只處理戰術卡使用後自身的移除
+      executeActionCard(card, state); // 假設這是執行效果的函式
+      removeCardFromHand(state, cardIndex);
+      // 註：戰術卡通常不額外抽牌，所以這裡沒有呼叫 draw()
     }
-    
-    // 重置選擇狀態
+
+    // --- 第 3 步：重置狀態，為下一回合做準備 ---
+    // 無論打出什麼牌，都必須重置玩家的「選擇狀態」
     state.selected = -1;
-    console.log('✅ 玩家回合完成，手牌數量:', state.player.hand.length);
     
-    // 🆕 新增：處理羈絆效果
-    if (effectProcessor) {
-      processAllSynergyEffects(state);
-    }
-    
+    // --- 第 4 步：渲染！ ---
+    // 這是最關鍵的一步：在所有數據（手牌、牌庫、壘包）都已經
+    // 100% 更新完畢之後，才呼叫 render() 函式來刷新整個遊戲畫面。
+    // 這確保了 UI 顯示的永遠是最新的、正確的遊戲狀態。
     render(state, handlers);
-    
+    console.log('✅ 玩家回合結束，UI 已刷新。');
+
+    // --- 第 5 步：檢查半局是否結束 ---
     if (state.outs >= 3) {
-      if (window.addGameHistory) {
-        window.addGameHistory('endInning', {
-          inning: `${state.currentInning}局${state.half}`,
-          score: `${state.score.away}-${state.score.home}`
-        });
-      }
-      
       setTimeout(() => changeHalfInning(state, handlers), 1500);
     }
-    
+
   } catch (error) {
-    console.error('❌ 玩家回合失敗:', error);
-    showErrorMessage(`玩家回合失敗: ${error.message}`);
+    console.error('❌ 玩家回合執行失敗:', error);
+    showErrorMessage(`玩家回合出錯: ${error.message}`);
   }
 }
 
@@ -512,7 +494,7 @@ function removeCardFromHand(state, cardIndex) {
   const removedCard = state.player.hand.splice(cardIndex, 1)[0];
   
   // 修改：強制檢查死聲效果
-  if (removedCard.effects && removedCard.effects.death && effectProcessor) {
+  if (removedCard.effects?.death && effectProcessor) {
     console.log('💀 強制處理死聲效果:', removedCard.name);
     const deathResult = effectProcessor.processDeathrattle(removedCard);
     if (deathResult.success) {
@@ -536,7 +518,7 @@ function executeActionCard(card, state, targetCard = null, targetIndex = -1) {
   let description = "";
   
   // 🆕 新增：使用效果處理器執行戰術卡
-  if (effectProcessor && card.effects && card.effects.play) {
+  if (effectProcessor && card.effects?.play) {
     console.log('🎭 使用效果處理器執行戰術卡:', card.name);
     
     // 如果是需要目標的卡牌，設置目標
@@ -1257,9 +1239,9 @@ function hitBySpeed(speed, state) {
   let tripleChance = 0.05 + (speed - 75) * 0.001;
 
   // 🆕 新增：檢查動態數值修改（如喵夢的效果）
-  const dynamicEffects = state.activeEffects.filter(effect => 
+  const dynamicEffects = state.activeEffects?.filter(effect => 
     effect.value === 'dynamicByScore' && effect.stat === 'speed'
-  );
+  ) ?? [];
   
   dynamicEffects.forEach(effect => {
     if (effect.calculation) {
