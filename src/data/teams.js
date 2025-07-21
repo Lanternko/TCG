@@ -304,7 +304,7 @@ export const TEAMS = [
     pitchers: [
       {
         type: "pitcher",
-        name: "三角 凜凜子",
+        name: "凜凜子",
         band: "支援",
         tags: ["Support", "Gentle"],
         position: "先發投手",
@@ -378,6 +378,7 @@ export const TEAMS = [
           }
         }
       },
+      // 修改：春日影戰術卡效果
       {
         type: "action",
         name: "春日影",
@@ -386,14 +387,14 @@ export const TEAMS = [
         rarity: "Rare",
         effects: {
           play: {
-            keyword: "max_stats",
-            target: "currentBatter",
+            keyword: "buff_next_batter",
+            action: "buffNextBatter",
             stats: {
               hitRate: 99,
               contact: 99
             },
             duration: "atBat",
-            description: "選擇一名我方正在打擊區的打者。本次打擊中，該打者的安打率與專注視為99。"
+            description: "下一位打者的安打率與專注視為99。"
           }
         }
       },

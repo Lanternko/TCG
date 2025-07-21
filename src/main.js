@@ -327,7 +327,7 @@ function runPlayerTurn(state, handlers) {
   }
 }
 
-// 🆕 新增：分離的打擊處理函數
+// 修復問題1：確保卡牌移除後正確抽牌和渲染
 function proceedWithAtBat(card, state, handlers) {
   // 進行打擊模擬
   const result = simulateEnhancedAtBat(card, state.cpu.activePitcher, state);
@@ -350,14 +350,25 @@ function proceedWithAtBat(card, state, handlers) {
   console.log('🗑️ 移除打者卡:', card.name);
   removeCardFromHand(state, state.selected);
   
-  // 檢查手牌上限再抽牌
-  if (state.player.hand.length < 7) {
-    const drawCount = Math.min(2, 7 - state.player.hand.length);
-    console.log('🎴 抽取新牌:', drawCount, '張');
-    draw(state.player, drawCount);
-  } else {
-    console.log('⚠️ 手牌已達上限，不抽牌');
-  }
+  // 🔧 修復：確保在手牌移除後立即抽牌和渲染
+  setTimeout(() => {
+    // 檢查手牌上限再抽牌
+    const currentHandSize = state.player.hand.length;
+    const maxHandSize = 7;
+    
+    if (currentHandSize < maxHandSize) {
+      const drawCount = Math.min(2, maxHandSize - currentHandSize);
+      console.log('🎴 抽取新牌:', drawCount, '張');
+      draw(state.player, drawCount);
+    } else {
+      console.log('⚠️ 手牌已達上限，不抽牌');
+    }
+    
+    // 🔧 修復：強制重新渲染確保UI更新
+    if (handlers && handlers.render) {
+      handlers.render(state, handlers);
+    }
+  }, 100); // 延遲100ms確保狀態更新完成
 }
 
 // 🆕 新增：增強版打擊模擬
@@ -384,14 +395,51 @@ function simulateEnhancedAtBat(batter, pitcher, state) {
 
   const r = Math.random();
   let c = pK;
-  if (r < c) return { type: 'K', description: `${batter.name} 三振出局`, points: 0 };
+  if (r < c) {
+    console.log('  結果: 三振');
+    return { 
+      type: 'K', 
+      description: `${batter.name} 三振出局`,
+      points: 0,
+      advancement: 0  // 新增
+    };
+  }
+  
   c += pBB;
-  if (r < c) return { type: 'BB', description: `${batter.name} 獲得保送`, points: 1 };
+  if (r < c) {
+    console.log('  結果: 保送');
+    return { 
+      type: 'BB', 
+      description: `${batter.name} 獲得保送`,
+      points: 1,
+      advancement: 1  // 新增
+    };
+  }
+  
   c += pHR;
-  if (r < c) return { type: 'HR', description: `全壘打！${batter.name}！`, points: 4 };
+  if (r < c) {
+    console.log('  結果: 全壘打');
+    return { 
+      type: 'HR', 
+      description: `全壘打！${batter.name}！`,
+      points: 4,
+      advancement: 4  // 新增
+    };
+  }
+  
   c += pH;
-  if (r < c) return hitBySpeed(finalBatterStats.speed, state);
-  return { type: 'OUT', description: `${batter.name} 出局`, points: 0 };
+  if (r < c) {
+    console.log('  結果: 安打，檢查速度');
+    return hitBySpeed(modifiedBatter.stats.speed, state, batter);
+  }
+  
+  console.log('  結果: 出局');
+  return { 
+    type: 'OUT', 
+    description: `${batter.name} 出局`,
+    points: 0,
+    advancement: 0  // 新增
+  };
 }
 
 // 🆕 新增：計算最終數值
@@ -454,6 +502,7 @@ function checkSpecialSynergies(state) {
   }
 }
 
+// 修改：removeCardFromHand 函數 - 強制觸發死聲效果
 function removeCardFromHand(state, cardIndex) {
   if (cardIndex < 0 || cardIndex >= state.player.hand.length) {
     console.warn('⚠️ 無效的卡牌索引:', cardIndex, '手牌數量:', state.player.hand.length);
@@ -462,13 +511,15 @@ function removeCardFromHand(state, cardIndex) {
   
   const removedCard = state.player.hand.splice(cardIndex, 1)[0];
   
-  // 🆕 新增：處理死聲效果
+  // 修改：強制檢查死聲效果
   if (removedCard.effects && removedCard.effects.death && effectProcessor) {
-    console.log('💀 處理死聲效果:', removedCard.name);
+    console.log('💀 強制處理死聲效果:', removedCard.name);
     const deathResult = effectProcessor.processDeathrattle(removedCard);
     if (deathResult.success) {
       console.log('✅ 死聲效果成功:', deathResult.description);
       updateOutcomeText(`${removedCard.name} 的死聲: ${deathResult.description}`);
+    } else {
+      console.log('❌ 死聲效果失敗:', deathResult.reason);
     }
   }
   
@@ -948,32 +999,34 @@ function simulateSimpleAtBat(batter, pitcher) {
   }
 }
 
-// 修改：processSimpleOutcome 函數 - 確保正確得分
+// 修改：processSimpleOutcome 函數 - 修正得分邏輯
 function processSimpleOutcome(result, state, batterCard) {
   if (result.type === 'K' || result.type === 'OUT') {
     state.outs++;
     console.log('⚾ 出局，出局數:', state.outs);
   } else {
-    // 修改：確保使用正確的推進距離
+    // 修改：根據結果類型確定推進距離
     let advancement = 1; // 預設推進1壘
     
     switch (result.type) {
       case 'HR':
-        advancement = 4;
+        advancement = 4; // 全壘打：所有人都得分
         break;
       case '3B':
-        advancement = 3;
+        advancement = 3; // 三壘安打：推進3壘
         break;
       case '2B':
-        advancement = 2;
+        advancement = 2; // 二壘安打：推進2壘
         break;
       case '1B':
       case 'BB':
-        advancement = 1;
+        advancement = 1; // 一壘安打/保送：推進1壘
         break;
+      default:
+        advancement = 1;
     }
     
-    console.log(`🏃 開始推進，距離: ${advancement}`);
+    console.log(`🏃 ${result.type} - 推進距離: ${advancement}`);
     const pointsScored = advanceRunners(state, batterCard, advancement);
     state.score.home += pointsScored;
     

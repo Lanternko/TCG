@@ -477,7 +477,8 @@ function addGameHistory(type, data) {
   }
 }
 
-// 🔧 修改：renderGameLog 函數 - 顯示最近3回合
+
+// 修復問題3：修復遊戲記錄面板的滾動功能
 function renderGameLog(state) {
   let logPanel = document.getElementById('game-log-panel');
   
@@ -486,14 +487,34 @@ function renderGameLog(state) {
     logPanel.id = 'game-log-panel';
     logPanel.className = 'game-log-panel';
     
+    // 🔧 修復：添加滾動樣式
+    logPanel.style.cssText = `
+      position: absolute !important;
+      top: 120px !important;
+      right: 20px !important;
+      width: 320px !important;
+      max-height: 480px !important;
+      background: rgba(0,0,0,0.92) !important;
+      border: 2px solid #4a5a6a !important;
+      border-radius: 15px !important;
+      padding: 1.5rem !important;
+      overflow-y: auto !important;
+      overflow-x: hidden !important;
+      z-index: 30 !important;
+      backdrop-filter: blur(10px) !important;
+      box-shadow: 0 8px 30px rgba(0,0,0,0.7) !important;
+      scrollbar-width: thin !important;
+      scrollbar-color: #4a5a6a #2c3e50 !important;
+    `;
+    
     const gameContainer = document.querySelector('.game-container');
     if (gameContainer) {
       gameContainer.appendChild(logPanel);
     }
   }
   
-  // 獲取最近3回合的記錄
-  const recentHistory = gameHistory.slice(0, 3);
+  // 獲取最近10條記錄（增加記錄數量）
+  const recentHistory = gameHistory.slice(0, 10);
   
   logPanel.innerHTML = `
     <div class="log-header">
@@ -511,13 +532,13 @@ function renderGameLog(state) {
       </div>
     </div>
     
-    <div class="log-section">
+    <div class="log-section" style="max-height: 200px; overflow-y: auto;">
       <div class="log-title" style="color: #e67e22;">
-        📝 最近3回合
+        📝 操作記錄
       </div>
       <div style="font-size: 0.75rem; color: #95a5a6; line-height: 1.3;">
         ${recentHistory.length > 0 ? recentHistory.map(entry => `
-          <div class="history-entry ${entry.type}">
+          <div class="history-entry ${entry.type}" style="margin-bottom: 0.3rem; padding: 0.2rem 0.4rem; border-radius: 3px;">
             ${formatHistoryEntry(entry)}
           </div>
         `).join('') : '還沒有記錄'}
@@ -545,6 +566,47 @@ function renderGameLog(state) {
     </div>
     ` : ''}
   `;
+  
+  // 🔧 修復：添加滾動條樣式
+  const style = document.createElement('style');
+  style.textContent = `
+    .game-log-panel::-webkit-scrollbar {
+      width: 6px !important;
+    }
+    
+    .game-log-panel::-webkit-scrollbar-track {
+      background: rgba(44, 62, 80, 0.3) !important;
+      border-radius: 3px !important;
+    }
+    
+    .game-log-panel::-webkit-scrollbar-thumb {
+      background: #4a5a6a !important;
+      border-radius: 3px !important;
+    }
+    
+    .game-log-panel::-webkit-scrollbar-thumb:hover {
+      background: #5a6a7a !important;
+    }
+    
+    .log-section {
+      scrollbar-width: thin !important;
+      scrollbar-color: #4a5a6a transparent !important;
+    }
+    
+    .log-section::-webkit-scrollbar {
+      width: 4px !important;
+    }
+    
+    .log-section::-webkit-scrollbar-thumb {
+      background: #4a5a6a !important;
+      border-radius: 2px !important;
+    }
+  `;
+  
+  if (!document.getElementById('log-panel-scroll-styles')) {
+    style.id = 'log-panel-scroll-styles';
+    document.head.appendChild(style);
+  }
 }
 
 function renderMainButton(state, buttonHandler) {

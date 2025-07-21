@@ -157,6 +157,8 @@ export class EffectProcessor {
     this.register('target_buff', this.handleTargetBuff.bind(this));
     this.register('destroyAllBasesForPermanentPower', this.handleSacrificeAll.bind(this)); // 新增
     this.register('sacrifice_all_bases', this.handleSacrificeAll.bind(this)); // 新增
+    this.register('buff_next_batter', this.handleBuffNextBatter.bind(this));
+    this.register('buffNextBatter', this.handleBuffNextBatter.bind(this));
   
     
     // 狀態效果
@@ -241,46 +243,56 @@ export class EffectProcessor {
   /**
    * 檢查觸發條件
    */
-  // 修改：checkCondition 方法 - 添加更多條件支持
+  // 修復問題4：在 checkCondition 方法中也加入安全檢查
   checkCondition(condition, card) {
     if (!condition) return true;
     
-    // 處理字符串條件
-    if (typeof condition === 'string') {
-      switch (condition) {
-        case 'basesEmpty':
-          return this.state.bases.every(base => base === null);
-        case 'onBase':
-          return this.state.bases.some(base => base && base.name === card.name);
-        case 'mygoMembersOnBase':
-          return this.state.bases.some(base => base && base.band === 'MyGO!!!!!');
-        case 'tomoriOnBase':
-          return this.state.bases.some(base => base && base.name.includes('燈'));
-        case 'sakiOnBase':
-          return this.state.bases.some(base => base && base.name.includes('祥子'));
-        case 'scoreComparison':
-          return true; // 在具體處理中判斷
-        default:
-          console.log(`🔍 未知字符串條件: ${condition}`);
-          return true;
+    try {
+      // 處理字符串條件
+      if (typeof condition === 'string') {
+        // 🔧 修復：安全的字符串處理
+        const conditionStr = String(condition || '').toLowerCase();
+        
+        switch (conditionStr) {
+          case 'basesempty':
+            return this.state.bases.every(base => base === null);
+          case 'onbase':
+            return this.state.bases.some(base => base && String(base.name || '').includes(String(card.name || '')));
+          case 'mygomembersonbase':
+            return this.state.bases.some(base => base && String(base.band || '') === 'MyGO!!!!!');
+          case 'tomorionbase':
+            return this.state.bases.some(base => base && String(base.name || '').includes('燈'));
+          case 'sakionbase':
+            return this.state.bases.some(base => base && String(base.name || '').includes('祥子'));
+          case 'scorecomparison':
+            return true;
+          default:
+            console.log(`🔍 未知字符串條件: ${condition}`);
+            return true;
+        }
       }
-    }
-    
-    // 處理對象條件
-    if (typeof condition === 'object') {
-      switch (condition.type) {
-        case 'basesEmpty':
-          return this.state.bases.every(base => base === null);
-        case 'countMyGOBattersOnBase':
-          const count = this.state.bases.filter(b => b && b.band === 'MyGO!!!!!').length;
-          return count >= (condition.value || 1);
-        default:
-          console.log(`🔍 未知對象條件:`, condition);
-          return true;
+      
+      // 處理對象條件
+      if (typeof condition === 'object' && condition !== null) {
+        switch (condition.type) {
+          case 'basesEmpty':
+            return this.state.bases.every(base => base === null);
+          case 'countMyGOBattersOnBase':
+            const count = this.state.bases.filter(b => 
+              b && String(b.band || '') === 'MyGO!!!!!'
+            ).length;
+            return count >= (condition.value || 1);
+          default:
+            console.log(`🔍 未知對象條件:`, condition);
+            return true;
+        }
       }
+      
+      return true;
+    } catch (error) {
+      console.error('❌ checkCondition 錯誤:', error, { condition, card });
+      return false;
     }
-    
-    return true;
   }
 
 
@@ -303,18 +315,37 @@ export class EffectProcessor {
   }
 
 
-  // 新增：在 EffectProcessor 類中添加 applyNextCardBuffs 方法
+  // 修改：applyNextCardBuffs 方法 - 支援最大數值設定
   applyNextCardBuffs(card) {
-    this.nextCardBuffs.forEach(buff => {
-      if (this.isTargetCard(card, buff.cardName)) {
+    this.nextCardBuffs.forEach((buff, index) => {
+      if (buff.type === 'max_stats') {
+        // 直接設定最大數值
         card.tempBonus = card.tempBonus || {};
-        card.tempBonus[buff.stat] = (card.tempBonus[buff.stat] || 0) + buff.value;
-        console.log(`✨ 應用預設加成: ${card.name} ${buff.stat}+${buff.value}`);
+        Object.keys(buff.stats).forEach(stat => {
+          const targetValue = buff.stats[stat];
+          const currentValue = card.stats[stat] + (card.tempBonus[stat] || 0);
+          if (currentValue < targetValue) {
+            card.tempBonus[stat] = targetValue - card.stats[stat];
+          }
+        });
+        console.log(`✨ 應用春日影效果: ${card.name} 數值設為最大`);
+      } else {
+        // 一般加成
+        if (this.isTargetCard(card, buff.cardName || '')) {
+          card.tempBonus = card.tempBonus || {};
+          card.tempBonus[buff.stat] = (card.tempBonus[buff.stat] || 0) + buff.value;
+          console.log(`✨ 應用預設加成: ${card.name} ${buff.stat}+${buff.value}`);
+        }
       }
     });
     
     // 清除已使用的加成
-    this.nextCardBuffs = this.nextCardBuffs.filter(buff => !this.isTargetCard(card, buff.cardName));
+    this.nextCardBuffs = this.nextCardBuffs.filter((buff, index) => {
+      if (buff.type === 'max_stats') {
+        return false; // 移除已使用的春日影效果
+      }
+      return !this.isTargetCard(card, buff.cardName || '');
+    });
   }
 
   
@@ -448,19 +479,33 @@ export class EffectProcessor {
     };
   }
 
-  // 新增：handleBoostMortis 處理器 (睦的死聲效果)
+  // 修改：handleBoostMortis 函數 - 確保正確增強 Mortis
   handleBoostMortis(effectData, card) {
-    // 為Mortis永久增加力量
-    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck].forEach(targetCard => {
+    let mortisFound = false;
+    let mortisEnhanced = 0;
+    
+    // 修改：在所有位置搜尋 Mortis
+    [...this.state.player.hand, ...this.state.bases.filter(Boolean), ...this.state.player.deck, ...this.state.player.discard].forEach(targetCard => {
       if (targetCard && targetCard.name === 'Mortis') {
         targetCard.permanentBonus = targetCard.permanentBonus || {};
         targetCard.permanentBonus.power = (targetCard.permanentBonus.power || 0) + 10;
+        mortisFound = true;
+        mortisEnhanced++;
+        console.log(`💀 睦的死聲：為 ${targetCard.name} 增加力量+10`, targetCard.permanentBonus);
       }
     });
     
+    if (!mortisFound) {
+      console.log(`⚠️ 找不到 Mortis 卡牌`);
+      return {
+        success: false,
+        description: `${card.name} 的死聲：找不到 Mortis`
+      };
+    }
+    
     return {
       success: true,
-      description: `${card.name} 的死聲：Mortis力量永久+10！`
+      description: `${card.name} 的死聲：為 ${mortisEnhanced} 張 Mortis 卡永久增加力量+10！`
     };
   }
 
@@ -725,28 +770,51 @@ export class EffectProcessor {
     };
   }
 
+  // 修復問題2：修復 handleTargetSpecific 方法，正確搜尋所有位置的目標
   handleTargetSpecific(effectData, card) {
     const targetName = effectData.target;
-    const targets = [...this.state.player.hand, ...this.state.bases.filter(Boolean)]
-        .filter(c => this.isTargetCard(c, targetName));
-
-    if (targets.length === 0) return { success: false, reason: `找不到 ${targetName}` };
-
-    targets.forEach(target => {
-      target.tempBonus = target.tempBonus || {};
-      const statsToBuff = effectData.stat === 'allStats' ? ['power', 'hitRate', 'contact', 'speed'] : [effectData.stat];
-      statsToBuff.forEach(s => {
-          target.tempBonus[s] = (target.tempBonus[s] || 0) + effectData.value;
-      });
+    
+    // 🔧 修復：搜尋所有位置的目標卡牌，包括牌庫
+    const allTargets = [
+      ...this.state.player.hand,
+      ...this.state.bases.filter(Boolean),
+      ...this.state.player.deck, // 確保包含牌庫
+      ...this.state.player.discard
+    ].filter(c => this.isTargetCard(c, targetName));
+  
+    console.log(`🎯 搜尋 ${targetName}:`, {
+      手牌: this.state.player.hand.filter(c => this.isTargetCard(c, targetName)).length,
+      壘上: this.state.bases.filter(c => c && this.isTargetCard(c, targetName)).length,
+      牌庫: this.state.player.deck.filter(c => this.isTargetCard(c, targetName)).length,
+      棄牌: this.state.player.discard.filter(c => this.isTargetCard(c, targetName)).length,
+      總計: allTargets.length
     });
-
+  
+    if (allTargets.length === 0) {
+      return { success: false, reason: `找不到 ${targetName}` };
+    }
+  
+    // 為所有找到的目標應用效果
+    allTargets.forEach(target => {
+      target.tempBonus = target.tempBonus || {};
+      const statsToBuff = effectData.stat === 'allStats' ? 
+        ['power', 'hitRate', 'contact', 'speed'] : [effectData.stat];
+      
+      statsToBuff.forEach(s => {
+        target.tempBonus[s] = (target.tempBonus[s] || 0) + effectData.value;
+      });
+      
+      console.log(`✨ ${target.name} 獲得 ${effectData.stat}+${effectData.value}`);
+    });
+  
+    // 處理額外效果
     if (effectData.bonusEffect) {
       this.processEffect(card, effectData.bonusEffect, 'bonus');
     }
-
+  
     return {
       success: true,
-      description: `強化了 ${targets.length} 張 ${targetName} 卡`
+      description: `強化了 ${allTargets.length} 張 ${targetName} 卡 (遊戲中所有位置)`
     };
   }
 
@@ -759,6 +827,23 @@ export class EffectProcessor {
     return {
       success: true,
       description: `${card.name} 的永久加成再次生效！`
+    };
+  }
+
+  // 新增：handleBuffNextBatter 處理器
+  handleBuffNextBatter(effectData, card) {
+    // 為下一張打出的打者卡設置最大數值
+    this.nextCardBuffs.push({
+      source: card.name,
+      type: 'max_stats',
+      stats: effectData.stats,
+      duration: effectData.duration || 'atBat',
+      description: '春日影效果：安打率與專注視為99'
+    });
+
+    return {
+      success: true,
+      description: `${card.name}：下一位打者的安打率與專注將視為99！`
     };
   }
 
@@ -897,15 +982,42 @@ export class EffectProcessor {
     return null;
   }
 
+  // 修復問題4：在多個可能出現 toLowerCase 錯誤的地方添加安全檢查
   isTargetCard(card, targetName) {
-    if (!card || !card.name) return false;
-    const nameMap = {
-      'rana': '樂奈', '樂奈': '樂奈',
-      'mortis': 'Mortis', 'Mortis': 'Mortis',
-      'mutsuki': '睦', '睦': '睦',
-      'uika': '初華', '初華': '初華',
-    };
-    return card.name.includes(nameMap[targetName.toLowerCase()] || targetName);
+    if (!card || !card.name || !targetName) return false;
+    
+    try {
+      // 🔧 修復：安全的字符串轉換，防止 toLowerCase 錯誤
+      const cardName = String(card.name || '').toLowerCase();
+      const searchName = String(targetName || '').toLowerCase();
+      
+      if (!cardName || !searchName) return false;
+      
+      const nameMap = {
+        'rana': '樂奈', 
+        '樂奈': '樂奈',
+        'rāna': '樂奈',
+        'mortis': 'mortis', 
+        'mutsuki': '睦', 
+        '睦': '睦',
+        'uika': '初華', 
+        '初華': '初華',
+        'saki': '祥子',
+        '祥子': '祥子'
+      };
+      
+      const mappedTarget = nameMap[searchName] || targetName;
+      const mappedTargetLower = String(mappedTarget || '').toLowerCase();
+      
+      return cardName.includes(mappedTargetLower) || 
+             cardName.includes(searchName) ||
+             String(card.name).includes(String(mappedTarget)) ||
+             String(card.name).includes(String(targetName));
+    } 
+    catch (error) {
+      console.error('❌ isTargetCard 錯誤:', error, { card, targetName });
+      return false;
+    }
   }
 
   calculateTotalStats(card) {
