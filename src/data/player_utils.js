@@ -1,6 +1,6 @@
 import { CONFIG } from './config.js';
 import { loadData, PLAYER_STATS_KEY } from './storage_utils.js';
-import { ALL_TEAMS, getTeamById as getBaseTeamById } from './teams.js';
+import { TEAMS, getTeamById as getBaseTeamById } from './teams.js';
 
 // OVR 計算函數 (來自你的檔案)
 function calculateBatterOVR(stats) {
@@ -90,7 +90,7 @@ export function prepareTeamsData(awayTeamId, homeTeamId) {
 
 
 export function getDefaultTeamIds() {
-    const awayId = ALL_TEAMS.length > 0 ? ALL_TEAMS[0].id : "NYY"; // 預設為 NYY
-    const homeId = ALL_TEAMS.length > 1 ? ALL_TEAMS[1].id : "LAD"; // 預設為 LAD
+    const awayId = TEAMS.length > 0 ? TEAMS[0].id : "NYY"; // 預設為 NYY
+    const homeId = TEAMS.length > 1 ? TEAMS[1].id : "LAD"; // 預設為 LAD
     return { awayTeamId: awayId, homeTeamId: homeId };
 }

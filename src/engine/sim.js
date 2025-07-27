@@ -1,5 +1,7 @@
 // src/engine/sim.js - Enhanced simulation engine with new effect integration
-import { CONFIG } from '../data/config.js';
+// ✅ Should be:
+import { GAME_CONFIG } from '../data/config.js';
+// Then use GAME_CONFIG.norm instead of CONFIG.norm
 import { EffectProcessor } from './effects.js';
 
 let effectProcessor = null;
@@ -39,7 +41,7 @@ export function simulateAtBat(batter, pitcher, state) {
   console.log('  最終投手數值:', modifiedPitcher.stats);
 
   // 使用CONFIG中的標準化參數進行計算
-  const { norm } = CONFIG;
+  const { norm } = GAME_CONFIG;
   const base = { K: 0.2, BB: 0.08, HR: 0.05, H: 0.25 };
 
   let pK = base.K + (modifiedPitcher.stats.power - 75) * norm.pitcherPowerSO

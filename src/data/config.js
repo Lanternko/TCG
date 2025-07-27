@@ -18,6 +18,16 @@ export const GAME_CONFIG = {
     BASE_RUNNER_SCORE: 1,     // 跑者回本壘得分
   },
   
+  norm: {
+    pitcherPowerSO: 0.002,
+    batterContactSO: 0.002,
+    controlBB: 0.003,
+    batterPowerHR: 0.003,
+    pitcherPowerHR: 0.002,
+    batterHitRate: 0.003,
+    velocityHit: 0.002
+  },
+  
   // 個別卡片的 Buff 數值
   BUFFS: {
     TOMORI_SYNERGY: 12,       // 燈的詩超絆每人加成
