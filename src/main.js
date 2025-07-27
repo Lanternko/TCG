@@ -1,4 +1,4 @@
-// Add these imports at the top of main.js
+// 在 main.js 開頭添加：
 import { CONFIG } from './data/config.js';
 import { TEAMS, getTeamById } from './data/teams.js';
 import { createGameState } from './engine/game_state.js';
@@ -333,40 +333,8 @@ function handleBattlecry(card) {
  const cardEffects = window.managers.cardEffects;
  let result;
  
- // 使用個別卡牌效果處理器
- switch (card.name) {
-   case '愛音':
-     result = cardEffects.playAnon(card);
-     break;
-   case '樂奈':
-     result = cardEffects.playRana(card);
-     break;
-   case '立希':
-     result = cardEffects.playTaki(card);
-     if (result.needsTarget) {
-       // 需要目標選擇
-       startTargetSelection(card, currentGameState, currentHandlers);
-       return;
-     }
-     break;
-   case '喵夢':
-     result = cardEffects.playNyamu(card);
-     break;
-   case '海鈴':
-     result = cardEffects.playUmirin(card);
-     break;
-   case '祥子':
-     result = cardEffects.playSaki(card);
-     break;
-   case '初華':
-     result = cardEffects.playUika(card);
-     break;
-   default:
-     // 使用通用效果處理器
-     if (effectProcessor.processBattlecry) {
-       result = effectProcessor.processBattlecry(card);
-     }
- }
+  // 選項 B: 只使用通用處理器（推薦）
+  return effectProcessor.processBattlecry(card);
  
  if (result && result.success) {
    console.log('✅ 戰吼效果:', result.description);

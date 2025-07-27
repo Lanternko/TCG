@@ -1,6 +1,5 @@
 // src/engine/sim.js - Enhanced simulation engine with new effect integration
 import { CONFIG } from '../data/config.js';
-import { EffectProcessor, effectRegistry } from './effects.js';
 
 let effectProcessor = null;
 

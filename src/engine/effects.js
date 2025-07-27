@@ -1,3 +1,6 @@
+// 在 effects.js 開頭添加：
+import { GAME_CONFIG } from '../data/config.js';
+
 // src/engine/effects.js - Enhanced and Corrected Effect System
 
 export const EFFECT_KEYWORDS = {
@@ -313,9 +316,9 @@ export class EffectProcessor {
       console.log(`🔮 應用永久效果: ${card.name}`, card.permanentBonus);
     }
     
-    // 確保永久加成被保留
-    if (card.permanentBonus && Object.keys(card.permanentBonus).length > 0) {
-      console.log(`📊 ${card.name} 保留永久加成:`, card.permanentBonus);
+    // 直接使用 card.permanentBonus，不要重複存儲
+    if (card.permanentBonus) {
+      console.log(`應用永久效果: ${card.name}`, card.permanentBonus);
     }
   }
 
@@ -1086,7 +1089,7 @@ export class EffectProcessor {
 
   // 修改：drawCards 方法 - 使用配置的手牌上限
   drawCards(player, count) {
-    const maxHandSize = window.GAME_CONFIG?.HAND.MAX_SIZE || 7;
+    const maxHandSize = GAME_CONFIG.HAND.MAX_SIZE; // 不是 CONFIG.handSize
     const actualCount = Math.min(count, maxHandSize - player.hand.length);
     
     console.log(`🎴 抽牌: 嘗試${count}張，實際${actualCount}張`);
