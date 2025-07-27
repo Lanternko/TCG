@@ -1,11 +1,11 @@
 // src/engine/game_state.js - 更新遊戲狀態
-
-import { CONFIG } from '../data/config.js';
+// 在 src/engine/game_state.js 開頭添加
+import { GAME_CONFIG } from '../data/config.js';
 import { TEAMS } from '../data/teams.js';
 
 export function createGameState() {
   return {
-    CONFIG,
+    GAME_CONFIG,
     TEAMS,
     player: {
       team: null,
