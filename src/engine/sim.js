@@ -249,27 +249,6 @@ export function processCardEffects(card, trigger, state) {
   return result;
 }
 
-/**
- * 🆕 新增：處理戰吼效果
- */
-export function processBattlecry(card, state) {
-  if (!effectProcessor) {
-    effectProcessor = initializeEffectProcessor(state);
-  }
-  
-  return effectProcessor.processBattlecry(card);
-}
-
-/**
- * 🆕 新增：處理死聲效果
- */
-export function processDeathrattle(card, state) {
-  if (!effectProcessor) {
-    effectProcessor = initializeEffectProcessor(state);
-  }
-  
-  return effectProcessor.processDeathrattle(card);
-}
 
 /**
  * 🆕 新增：處理羈絆效果

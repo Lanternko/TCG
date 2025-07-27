@@ -1,3 +1,11 @@
+// Add these imports at the top of main.js
+import { CONFIG } from './data/config.js';
+import { TEAMS, getTeamById } from './data/teams.js';
+import { createGameState } from './engine/game_state.js';
+import { render } from './ui/ui.js';
+import { EffectProcessor } from './engine/effects.js';
+import { simulateAtBat } from './engine/sim.js';
+
 // src/main.js - Enhanced with new card effects system
 console.log('🎸 MyGO!!!!! TCG Enhanced Edition 載入中...');
 
@@ -409,76 +417,6 @@ function proceedWithAtBat(card, state, handlers) {
   }, 100); // 延遲100ms確保狀態更新完成
 }
 
-// 🆕 新增：增強版打擊模擬
-function simulateEnhancedAtBat(batter, pitcher, state) {
-  // 計算最終數值（包含所有加成）
-  const finalBatterStats = calculateFinalStats(batter);
-  const finalPitcherStats = calculateFinalStats(pitcher);
-  
-  console.log('⚾ 增強版打擊模擬:');
-  console.log('  打者:', batter.name, finalBatterStats);
-  console.log('  投手:', pitcher.name, finalPitcherStats);
-  
-  // 使用最終數值進行模擬
-  const { norm } = CONFIG;
-  const base = { K: 0.2, BB: 0.08, HR: 0.05, H: 0.25 };
-
-  let pK = base.K + (finalPitcherStats.power - 75) * norm.pitcherPowerSO
-                 - (finalBatterStats.contact - 75) * norm.batterContactSO;
-  let pBB = base.BB - (finalPitcherStats.control - 75) * norm.controlBB;
-  let pHR = base.HR + (finalBatterStats.power - 75) * norm.batterPowerHR
-                  - (finalPitcherStats.power - 75) * norm.pitcherPowerHR;
-  let pH = base.H + (finalBatterStats.hitRate - 75) * norm.batterHitRate
-                 - (finalPitcherStats.velocity - 75) * norm.velocityHit;
-
-  const r = Math.random();
-  let c = pK;
-  if (r < c) {
-    console.log('  結果: 三振');
-    return { 
-      type: 'K', 
-      description: `${batter.name} 三振出局`,
-      points: 0,
-      advancement: 0  // 新增
-    };
-  }
-  
-  c += pBB;
-  if (r < c) {
-    console.log('  結果: 保送');
-    return { 
-      type: 'BB', 
-      description: `${batter.name} 獲得保送`,
-      points: 1,
-      advancement: 1  // 新增
-    };
-  }
-  
-  c += pHR;
-  if (r < c) {
-    console.log('  結果: 全壘打');
-    return { 
-      type: 'HR', 
-      description: `全壘打！${batter.name}！`,
-      points: 4,
-      advancement: 4  // 新增
-    };
-  }
-  
-  c += pH;
-  if (r < c) {
-    console.log('  結果: 安打，檢查速度');
-    return hitBySpeed(modifiedBatter.stats.speed, state, batter);
-  }
-  
-  console.log('  結果: 出局');
-  return { 
-    type: 'OUT', 
-    description: `${batter.name} 出局`,
-    points: 0,
-    advancement: 0  // 新增
-  };
-}
 
 // 🆕 新增：計算最終數值
 function calculateFinalStats(card) {
@@ -1212,54 +1150,6 @@ function prepareCard(cardData) {
   }
   
   return card;
-}
-
-// 修改：draw 函數 - 確保抽牌時應用永久效果
-function draw(player, numToDraw) {
-  console.log('🎴 開始抽牌:', numToDraw, '張');
-  console.log('📊 抽牌前 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
-  
-  if (player.hand.length >= 7) {
-    console.log('⚠️ 手牌已達上限 (7張)，停止抽牌');
-    return;
-  }
-  
-  const actualDrawCount = Math.min(numToDraw, 7 - player.hand.length);
-  console.log('🎴 實際抽牌數量:', actualDrawCount);
-  
-  for (let i = 0; i < actualDrawCount; i++) {
-    if (player.deck.length === 0) {
-      if (player.discard.length === 0) {
-        console.warn('⚠️ 牌庫和棄牌堆都是空的，無法抽牌');
-        break;
-      }
-      
-      console.log('🔄 牌庫空了，從棄牌堆重新洗牌');
-      player.deck = [...player.discard];
-      player.discard = [];
-      shuffle(player.deck);
-      console.log('🔀 重新洗牌完成，牌庫數量:', player.deck.length);
-    }
-    
-    if (player.deck.length > 0) {
-      const drawnCard = player.deck.pop();
-      
-      // 🆕 新增：應用永久效果到新抽的卡牌
-      if (effectProcessor) {
-        effectProcessor.applyPermanentEffects(drawnCard);
-        
-        // 🔧 修復：確保永久加成被保留
-        if (drawnCard.permanentBonus && Object.keys(drawnCard.permanentBonus).length > 0) {
-          console.log(`✨ ${drawnCard.name} 保留永久加成:`, drawnCard.permanentBonus);
-        }
-      }
-      
-      player.hand.push(drawnCard);
-      console.log('🎴 抽到:', drawnCard.name);
-    }
-  }
-  
-  console.log('📊 抽牌後 - 牌庫:', player.deck.length, '手牌:', player.hand.length, '棄牌:', player.discard.length);
 }
 
 function calculateBatterOVR(stats) {
