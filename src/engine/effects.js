@@ -1,43 +1,43 @@
-// src/engine/effects.js - 修復版本
-console.log('🎭 載入修復版效果系統...');
+// src/engine/effects.js - 修复版本
+console.log('🎭 载入修复版效果系统...');
 
-// ✅ 修復 1: 添加正確的 import
+// ✅ 修复 1: 添加正确的 import
 import { GAME_CONFIG } from '../data/config.js';
 
 export const EFFECT_KEYWORDS = {
-  // 基礎動作關鍵字
+  // 基础动作关键字
   DRAW: 'draw',
   DISCARD: 'discard', 
   SEARCH: 'search',
   SHUFFLE: 'shuffle',
   
-  // 數值修改關鍵字
+  // 数值修改关键字
   BUFF: 'buff',
   DEBUFF: 'debuff',
   SET_TO: 'setTo',
   MAX_STATS: 'max_stats',
   
-  // 狀態關鍵字
+  // 状态关键字
   LOCK: 'lock',
   UNLOCK: 'unlock',
   IMMUNE: 'immune',
   UNTARGETABLE: 'untargetable',
   
-  // 條件關鍵字
+  // 条件关键字
   CONDITIONAL_BUFF: 'conditional_buff',
   CONDITIONAL_DRAW: 'conditional_draw',
   CONDITIONAL_EFFECT: 'conditional_effect',
   
-  // 戰吼/死聲關鍵字
+  // 战吼/死声关键字
   BATTLECRY: 'battlecry',
   DEATHRATTLE: 'deathrattle',
   
-  // 位置關鍵字
+  // 位置关键字
   ADVANCE: 'advance',
   RETREAT: 'retreat',
   TELEPORT: 'teleport',
   
-  // 特殊關鍵字
+  // 特殊关键字
   COPY: 'copy',
   COPY_STATS: 'copy_stats',
   DESTROY: 'destroy',
@@ -46,7 +46,7 @@ export const EFFECT_KEYWORDS = {
   FUSION: 'fusion',
   RESURRECT: 'resurrect',
   
-  // 高級效果
+  // 高级效果
   DECK_PEEK: 'deck_peek',
   POWER_TRANSFER: 'power_transfer',
   TARGET_SPECIFIC: 'target_specific',
@@ -72,25 +72,25 @@ export const TARGET_TYPES = {
 };
 
 export const CONDITIONS = {
-  // 位置條件
+  // 位置条件
   ON_BASE: 'onBase',
   IN_HAND: 'inHand',
   ON_PLAY: 'onPlay',
   BASES_EMPTY: 'basesEmpty',
   
-  // 數量條件
+  // 数量条件
   COUNT_EQUAL: 'countEqual',
   COUNT_MORE_THAN: 'countMoreThan',
   COUNT_LESS_THAN: 'countLessThan',
   
-  // 特定條件
+  // 特定条件
   HAS_TAG: 'hasTag',
   HAS_INSTRUMENT: 'hasInstrument',
   HAS_BAND: 'hasBand',
   IS_TRAILING: 'isTrailing',
   IS_LEADING: 'isLeading',
   
-  // MyGO!!!!! 特定條件
+  // MyGO!!!!! 特定条件
   MYGO_MEMBERS_ON_BASE: 'mygoMembersOnBase',
   TOMORI_ON_BASE: 'tomoriOnBase',
   SAKI_ON_BASE: 'sakiOnBase',
@@ -110,7 +110,7 @@ export const DURATIONS = {
 };
 
 /**
- * 增強的效果處理器 - 修復版
+ * 增强的效果处理器 - 修复版
  */
 export class EffectProcessor {
   constructor(gameState) {
@@ -122,34 +122,34 @@ export class EffectProcessor {
   }
 
   /**
-   * ✅ 修復 2: 註冊所有預設的效果處理器
+   * ✅ 修复 2: 注册所有预设的效果处理器
    */
   registerDefaultHandlers() {
-    // 基礎動作
+    // 基础动作
     this.register(EFFECT_KEYWORDS.DRAW, this.handleDraw.bind(this));
     this.register(EFFECT_KEYWORDS.DISCARD, this.handleDiscard.bind(this));
     this.register(EFFECT_KEYWORDS.SEARCH, this.handleSearch.bind(this));
     this.register(EFFECT_KEYWORDS.SHUFFLE, this.handleShuffle.bind(this));
     
-    // 數值修改
+    // 数值修改
     this.register(EFFECT_KEYWORDS.BUFF, this.handleBuff.bind(this));
     this.register(EFFECT_KEYWORDS.DEBUFF, this.handleDebuff.bind(this));
     this.register(EFFECT_KEYWORDS.SET_TO, this.handleSetTo.bind(this));
     this.register(EFFECT_KEYWORDS.MAX_STATS, this.handleMaxStats.bind(this));
     
-    // 條件效果
+    // 条件效果
     this.register(EFFECT_KEYWORDS.CONDITIONAL_BUFF, this.handleConditionalBuff.bind(this));
     this.register(EFFECT_KEYWORDS.CONDITIONAL_DRAW, this.handleConditionalDraw.bind(this));
     this.register(EFFECT_KEYWORDS.CONDITIONAL_EFFECT, this.handleConditionalEffect.bind(this));
     
-    // 高級效果
+    // 高级效果
     this.register(EFFECT_KEYWORDS.COPY_STATS, this.handleCopyStats.bind(this));
     this.register(EFFECT_KEYWORDS.DECK_PEEK, this.handleDeckPeek.bind(this));
     this.register(EFFECT_KEYWORDS.POWER_TRANSFER, this.handlePowerTransfer.bind(this));
     this.register(EFFECT_KEYWORDS.TARGET_SPECIFIC, this.handleTargetSpecific.bind(this));
     this.register(EFFECT_KEYWORDS.DOUBLE_BONUS, this.handleDoubleBonus.bind(this));
     
-    // 戰術卡特殊效果
+    // 战术卡特殊效果
     this.register('discard_draw', this.handleDiscardDraw.bind(this));
     this.register('discardThenDraw', this.handleDiscardThenDraw.bind(this));
     this.register('putBackThenDraw', this.handlePutBackThenDraw.bind(this));
@@ -163,7 +163,7 @@ export class EffectProcessor {
     this.register('buff_next_batter', this.handleBuffNextBatter.bind(this));
     this.register('buffNextBatter', this.handleBuffNextBatter.bind(this));
     
-    // 狀態效果
+    // 状态效果
     this.register(EFFECT_KEYWORDS.LOCK, this.handleLock.bind(this));
     this.register(EFFECT_KEYWORDS.IMMUNE, this.handleImmune.bind(this));
     this.register(EFFECT_KEYWORDS.UNTARGETABLE, this.handleUntargetable.bind(this));
@@ -173,7 +173,7 @@ export class EffectProcessor {
     this.register(EFFECT_KEYWORDS.DESTROY, this.handleDestroy.bind(this));
     this.register(EFFECT_KEYWORDS.SACRIFICE, this.handleSacrifice.bind(this));
 
-    // 特殊動作效果
+    // 特殊动作效果
     this.register('lockCharacter', this.handleLockCharacter.bind(this));
     this.register('boostUika', this.handleBoostUika.bind(this));
     this.register('boostMortis', this.handleBoostMortis.bind(this));
@@ -183,7 +183,7 @@ export class EffectProcessor {
   }
 
   /**
-   * 註冊新的效果處理器
+   * 注册新的效果处理器
    */
   register(keyword, handler) {
     if (typeof handler !== 'function') {
@@ -194,61 +194,61 @@ export class EffectProcessor {
   }
 
   /**
-   * ✅ 修復 3: 處理卡牌效果的主要入口
+   * ✅ 修复 3: 处理卡牌效果的主要入口
    */
   processEffect(card, effectData, trigger) {
-    console.log(`🎭 處理效果: ${card.name} - ${trigger}`, effectData);
+    console.log(`🎭 处理效果: ${card.name} - ${trigger}`, effectData);
     
     if (!effectData) {
-      console.warn(`❌ 沒有效果數據: ${card.name}`);
-      return { success: false, reason: '沒有效果數據' };
+      console.warn(`❌ 没有效果数据: ${card.name}`);
+      return { success: false, reason: '没有效果数据' };
     }
     
-    // 檢查條件
+    // 检查条件
     if (effectData.condition && !this.checkCondition(effectData.condition, card)) {
-      console.log(`❌ 條件不符: ${effectData.condition}`);
-      return { success: false, reason: '條件不符' };
+      console.log(`❌ 条件不符: ${effectData.condition}`);
+      return { success: false, reason: '条件不符' };
     }
 
-    // 確定要執行的動作
+    // 确定要执行的动作
     const action = effectData.action || effectData.keyword;
-    console.log(`🔍 嘗試執行動作: ${action}`);
+    console.log(`🔍 尝试执行动作: ${action}`);
     
     if (!action) {
-      console.warn(`❌ 沒有指定動作: ${card.name}`);
-      return { success: false, reason: '沒有指定動作' };
+      console.warn(`❌ 没有指定动作: ${card.name}`);
+      return { success: false, reason: '没有指定动作' };
     }
 
     const handler = this.handlers.get(action);
     
     if (!handler) {
-      console.warn(`⚠️ 未知的效果關鍵字: ${action}`);
-      console.log(`📋 可用的處理器:`, Array.from(this.handlers.keys()));
+      console.warn(`⚠️ 未知的效果关键字: ${action}`);
+      console.log(`📋 可用的处理器:`, Array.from(this.handlers.keys()));
       return { success: false, reason: `未知效果: ${action}` };
     }
 
     try {
       const result = handler(effectData, card);
       if (result && result.success) {
-        console.log(`✅ 效果執行成功: ${result.description}`);
+        console.log(`✅ 效果执行成功: ${result.description}`);
       } else {
-        console.warn(`❌ 效果執行失敗:`, result);
+        console.warn(`❌ 效果执行失败:`, result);
       }
       return result;
     } catch (error) {
-      console.error(`❌ 效果執行異常: ${action}`, error);
+      console.error(`❌ 效果执行异常: ${action}`, error);
       return { success: false, reason: error.message };
     }
   }
 
   /**
-   * ✅ 修復 4: 檢查觸發條件
+   * ✅ 修复 4: 检查触发条件
    */
   checkCondition(condition, card) {
     if (!condition) return true;
     
     try {
-      // 處理字符串條件
+      // 处理字符串条件
       if (typeof condition === 'string') {
         const conditionStr = String(condition || '').toLowerCase();
         
@@ -260,18 +260,18 @@ export class EffectProcessor {
           case 'mygomembersonbase':
             return this.state.bases.some(base => base && String(base.band || '') === 'MyGO!!!!!');
           case 'tomorionbase':
-            return this.state.bases.some(base => base && String(base.name || '').includes('燈'));
+            return this.state.bases.some(base => base && String(base.name || '').includes('灯'));
           case 'sakionbase':
             return this.state.bases.some(base => base && String(base.name || '').includes('祥子'));
           case 'scorecomparison':
             return true;
           default:
-            console.log(`🔍 未知字符串條件: ${condition}`);
+            console.log(`🔍 未知字符串条件: ${condition}`);
             return true;
         }
       }
       
-      // 處理對象條件
+      // 处理对象条件
       if (typeof condition === 'object' && condition !== null) {
         switch (condition.type) {
           case 'basesEmpty':
@@ -282,109 +282,176 @@ export class EffectProcessor {
             ).length;
             return count >= (condition.value || 1);
           default:
-            console.log(`🔍 未知對象條件:`, condition);
+            console.log(`🔍 未知对象条件:`, condition);
             return true;
         }
       }
       
       return true;
     } catch (error) {
-      console.error('❌ checkCondition 錯誤:', error, { condition, card });
+      console.error('❌ checkCondition 错误:', error, { condition, card });
       return false;
     }
   }
 
   /**
-   * ✅ 修復 5: 戰吼效果處理
+   * ✅ 修复 5: 战吼效果处理
    */
   processBattlecry(card) {
     if (card.effects && card.effects.play) {
       return this.processEffect(card, card.effects.play, 'play');
     }
-    return { success: false, reason: '沒有戰吼效果' };
+    return { success: false, reason: '没有战吼效果' };
   }
 
   /**
-   * ✅ 修復 6: 死聲效果處理
+   * ✅ 修复 6: 死声效果处理
    */
   processDeathrattle(card) {
     if (card.effects && card.effects.death) {
       return this.processEffect(card, card.effects.death, 'death');
     }
-    return { success: false, reason: '沒有死聲效果' };
+    return { success: false, reason: '没有死声效果' };
   }
 
   /**
-   * ✅ 修復 7: 羈絆效果處理
+   * ✅ 修复 7: 羁绊效果处理
    */
   processSynergy(card) {
     if (card.effects && card.effects.synergy) {
       return this.processEffect(card, card.effects.synergy, 'synergy');
     }
-    return { success: false, reason: '沒有羈絆效果' };
+    return { success: false, reason: '没有羁绊效果' };
   }
 
   /**
-   * ✅ 修復 8: 光環效果處理
+   * ✅ 修复 8: 光环效果处理
    */
   processAura(card) {
     if (card.effects && card.effects.aura) {
       return this.processEffect(card, card.effects.aura, 'aura');
     }
-    return { success: false, reason: '沒有光環效果' };
+    return { success: false, reason: '没有光环效果' };
   }
 
   /**
-   * ✅ 修復 9: 統一抽牌邏輯
+   * ✅ 修复 9: 统一抽牌逻辑 - 解决手牌为空问题
    */
   drawCards(player, count) {
     const maxHandSize = GAME_CONFIG.HAND.MAX_SIZE;
-    const actualCount = Math.min(count, maxHandSize - player.hand.length);
+    const currentHandSize = player.hand.length;
+    const actualCount = Math.min(count, maxHandSize - currentHandSize);
     
-    console.log(`🎴 抽牌: 嘗試${count}張，實際${actualCount}張`);
+    console.log(`🎴 抽牌请求: 尝试${count}张，当前手牌${currentHandSize}张，实际可抽${actualCount}张`);
+    
+    if (actualCount <= 0) {
+      console.log('⚠️ 无法抽牌：手牌已满或无效数量');
+      return;
+    }
+    
+    let successfullyDrawn = 0;
     
     for (let i = 0; i < actualCount; i++) {
+      // ✅ 修复：确保牌库有牌
       if (player.deck.length === 0) {
         if (player.discard.length === 0) {
-          console.warn('⚠️ 牌庫和棄牌堆都是空的');
+          console.warn('⚠️ 牌库和弃牌堆都是空的，无法继续抽牌');
           break;
         }
         
-        console.log('🔄 重新洗牌');
-        player.deck = [...player.discard];
+        console.log('🔄 牌库为空，从弃牌堆重新洗牌');
+        // 将弃牌堆洗入牌库
+        const discardCards = [...player.discard];
         player.discard = [];
+        player.deck = discardCards;
         this.shuffleDeck(player.deck);
+        console.log(`✅ 从弃牌堆恢复了 ${player.deck.length} 张牌到牌库`);
       }
       
       if (player.deck.length > 0) {
         const drawnCard = player.deck.pop();
         
-        // 應用永久效果
+        // 应用永久效果
         this.applyPermanentEffects(drawnCard);
         
         player.hand.push(drawnCard);
-        console.log(`🎴 抽到: ${drawnCard.name}`);
+        successfullyDrawn++;
+        console.log(`🎴 抽到: ${drawnCard.name} (手牌: ${player.hand.length}/${maxHandSize})`);
+      } else {
+        console.warn('⚠️ 即使洗牌后牌库仍为空');
+        break;
       }
     }
-  }
-
-  /**
-   * ✅ 修復 10: 永久效果應用
-   */
-  applyPermanentEffects(card) {
-    // 只使用 card.permanentBonus，移除重複存儲
-    if (card.permanentBonus && Object.keys(card.permanentBonus).length > 0) {
-      console.log(`🔮 應用永久效果: ${card.name}`, card.permanentBonus);
+    
+    console.log(`✅ 抽牌完成: 成功抽取 ${successfullyDrawn}/${count} 张牌`);
+    
+    // ✅ 修复：如果仍然无法抽到足够的牌，创建紧急牌
+    if (successfullyDrawn === 0 && player.hand.length === 0) {
+      console.warn('🚨 紧急情况：创建基础牌');
+      this.createEmergencyCards(player);
     }
   }
 
   /**
-   * ✅ 修復 11: 臨時加成應用
+   * ✅ 新增：紧急创建基础牌
+   */
+  createEmergencyCards(player) {
+    console.log('🆘 创建紧急基础牌...');
+    
+    const emergencyCards = [
+      {
+        type: 'batter',
+        name: '紧急替补',
+        stats: { power: 60, hitRate: 70, contact: 65, speed: 50 },
+        band: '替补',
+        instrument: 'Support',
+        ovr: 61,
+        description: '紧急情况下的替补球员'
+      },
+      {
+        type: 'action',
+        name: '重整旗鼓',
+        rarity: 'Common',
+        effects: {
+          play: {
+            keyword: 'draw',
+            action: 'drawCard',
+            value: 2,
+            description: '抽2张牌'
+          }
+        },
+        description: '从困境中重新站起来'
+      }
+    ];
+    
+    emergencyCards.forEach(cardData => {
+      const card = { ...cardData };
+      card.permanentBonus = {};
+      card.tempBonus = {};
+      player.hand.push(card);
+      console.log(`🆘 创建紧急牌: ${card.name}`);
+    });
+    
+    console.log(`✅ 紧急创建了 ${emergencyCards.length} 张牌`);
+  }
+
+  /**
+   * ✅ 修复 10: 永久效果应用
+   */
+  applyPermanentEffects(card) {
+    // 只使用 card.permanentBonus，移除重复存储
+    if (card.permanentBonus && Object.keys(card.permanentBonus).length > 0) {
+      console.log(`🔮 应用永久效果: ${card.name}`, card.permanentBonus);
+    }
+  }
+
+  /**
+   * ✅ 修复 11: 临时加成应用
    */
   applyNextCardBuffs(card) {
     this.nextCardBuffs.forEach((buff, index) => {
       if (buff.type === 'max_stats') {
-        // 直接設定最大數值
+        // 直接设定最大数值
         card.tempBonus = card.tempBonus || {};
         Object.keys(buff.stats).forEach(stat => {
           const targetValue = buff.stats[stat];
@@ -393,13 +460,13 @@ export class EffectProcessor {
             card.tempBonus[stat] = targetValue - card.stats[stat];
           }
         });
-        console.log(`✨ 應用春日影效果: ${card.name} 數值設為最大`);
+        console.log(`✨ 应用春日影效果: ${card.name} 数值设为最大`);
       } else {
         // 一般加成
         if (this.isTargetCard(card, buff.cardName || '')) {
           card.tempBonus = card.tempBonus || {};
           card.tempBonus[buff.stat] = (card.tempBonus[buff.stat] || 0) + buff.value;
-          console.log(`✨ 應用預設加成: ${card.name} ${buff.stat}+${buff.value}`);
+          console.log(`✨ 应用预设加成: ${card.name} ${buff.stat}+${buff.value}`);
         }
       }
     });
@@ -413,14 +480,14 @@ export class EffectProcessor {
     });
   }
 
-  // === 基礎效果處理器 ===
+  // === 基础效果处理器 ===
 
   handleDraw(effectData, card) {
     const count = effectData.value || 1;
     this.drawCards(this.state.player, count);
     return { 
       success: true, 
-      description: `${card.name} 抽了 ${count} 張卡` 
+      description: `${card.name} 抽了 ${count} 张卡` 
     };
   }
 
@@ -435,28 +502,28 @@ export class EffectProcessor {
     }
     return { 
       success: true, 
-      description: `${card.name} 棄了 ${count} 張卡` 
+      description: `${card.name} 弃了 ${count} 张卡` 
     };
   }
 
   handleSearch(effectData, card) {
-    return { success: true, description: `搜尋效果待實現` };
+    return { success: true, description: `搜寻效果待实现` };
   }
 
   handleShuffle(effectData, card) {
     this.shuffleDeck(this.state.player.deck);
-    return { success: true, description: `牌庫已洗勻` };
+    return { success: true, description: `牌库已洗匀` };
   }
 
-  // === 條件效果處理器 ===
+  // === 条件效果处理器 ===
 
   handleConditionalBuff(effectData, card) {
     if (!this.checkCondition(effectData.condition, card)) {
-      return { success: false, reason: '條件不符' };
+      return { success: false, reason: '条件不符' };
     }
     const target = this.getTargets(effectData.target, card)[0];
     if (!target) {
-      return { success: false, reason: '找不到目標' };
+      return { success: false, reason: '找不到目标' };
     }
     target.tempBonus = target.tempBonus || {};
     target.tempBonus[effectData.stat] = (target.tempBonus[effectData.stat] || 0) + effectData.value;
@@ -476,7 +543,7 @@ export class EffectProcessor {
     }
     return {
       success: true,
-      description: `${card.name} 抽了 ${totalDraw} 張卡`
+      description: `${card.name} 抽了 ${totalDraw} 张卡`
     };
   }
 
@@ -490,16 +557,16 @@ export class EffectProcessor {
       else if (action.condition === 'trailing' && homeScore < awayScore) actionToExecute = action;
     });
 
-    if (!actionToExecute) return { success: false, reason: '沒有符合的條件' };
+    if (!actionToExecute) return { success: false, reason: '没有符合的条件' };
 
     const handler = this.handlers.get(actionToExecute.keyword);
     if (handler) {
         return handler(actionToExecute, card);
     }
-    return { success: false, reason: '未知的動作類型' };
+    return { success: false, reason: '未知的动作类型' };
   }
 
-  // === 戰術卡效果處理器 ===
+  // === 战术卡效果处理器 ===
 
   handleDiscardThenDraw(effectData, card) {
     const discardCount = effectData.discardCount || 1;
@@ -509,16 +576,24 @@ export class EffectProcessor {
       return { success: false, reason: '手牌不足' };
     }
 
+    // ✅ 修复：确保正确处理弃牌
+    let discardedCards = [];
     for (let i = 0; i < discardCount; i++) {
-      const discarded = this.state.player.hand.pop();
-      this.state.player.discard.push(discarded);
+      if (this.state.player.hand.length > 0) {
+        const discarded = this.state.player.hand.pop();
+        this.state.player.discard.push(discarded);
+        discardedCards.push(discarded.name);
+      }
     }
 
+    console.log(`🗑️ 弃牌: ${discardedCards.join(', ')}`);
+
+    // 然后抽牌
     this.drawCards(this.state.player, drawCount);
 
     return {
       success: true,
-      description: `棄了 ${discardCount} 張牌，抽了 ${drawCount} 張牌`
+      description: `弃了 ${discardedCards.length} 张牌，抽了 ${drawCount} 张牌`
     };
   }
 
@@ -530,48 +605,85 @@ export class EffectProcessor {
       return { success: false, reason: '手牌不足' };
     }
 
+    // ✅ 修复：正确处理放回牌库底
+    let putBackCards = [];
     for (let i = 0; i < putBackCount; i++) {
-      const putBack = this.state.player.hand.pop();
-      this.state.player.deck.unshift(putBack);
+      if (this.state.player.hand.length > 0) {
+        const putBack = this.state.player.hand.pop();
+        this.state.player.deck.unshift(putBack); // 放到牌库底
+        putBackCards.push(putBack.name);
+      }
     }
 
+    console.log(`🔄 放回牌库底: ${putBackCards.join(', ')}`);
+
+    // 然后抽牌
     this.drawCards(this.state.player, drawCount);
 
     return {
       success: true,
-      description: `放回了 ${putBackCount} 張牌到牌庫底，抽了 ${drawCount} 張牌`
+      description: `放回了 ${putBackCards.length} 张牌到牌库底，抽了 ${drawCount} 张牌`
     };
   }
 
   handleSacrificeAll(effectData, card) {
     const destroyedCards = [];
     
+    // ✅ 修复：正确处理解散乐队效果
     this.state.bases.forEach((baseCard, index) => {
       if (baseCard) {
-        destroyedCards.push(baseCard);
+        destroyedCards.push({
+          name: baseCard.name,
+          base: index + 1
+        });
+        
+        // 处理死声效果
+        if (baseCard.effects?.death) {
+          console.log(`💀 处理 ${baseCard.name} 的死声效果`);
+          this.processDeathrattle(baseCard);
+        }
+        
+        // 移到弃牌堆
         this.state.player.discard.push(baseCard);
       }
     });
     
+    // 清空垒包
     this.state.bases = [null, null, null];
     
-    const bonusPerCard = effectData.bonusPerDestroyed || 5;
-    const totalBonus = destroyedCards.length * bonusPerCard;
+    console.log(`💥 解散乐队摧毁了:`, destroyedCards);
     
-    if (totalBonus > 0) {
-      [...this.state.player.deck, ...this.state.player.hand, ...this.state.player.discard].forEach(deckCard => {
-        if (deckCard.type === 'batter') {
+    // ✅ 修复：正确应用永久加成
+    const bonusPerCard = effectData.bonusPerDestroyed || 5;
+    const totalCards = destroyedCards.length;
+    
+    if (totalCards > 0) {
+      console.log(`🔮 为所有打者卡牌添加永久加成: +${bonusPerCard} 每项属性`);
+      
+      // 应用到所有位置的打者卡牌
+      const allCards = [
+        ...this.state.player.deck,
+        ...this.state.player.hand,
+        ...this.state.player.discard
+      ];
+      
+      let enhancedCount = 0;
+      allCards.forEach(deckCard => {
+        if (deckCard && deckCard.type === 'batter') {
           deckCard.permanentBonus = deckCard.permanentBonus || {};
           ['power', 'hitRate', 'contact', 'speed'].forEach(stat => {
             deckCard.permanentBonus[stat] = (deckCard.permanentBonus[stat] || 0) + bonusPerCard;
           });
+          enhancedCount++;
         }
       });
+      
+      console.log(`✅ 共强化了 ${enhancedCount} 张打者卡牌`);
     }
     
     return {
       success: true,
-      description: `解散樂隊！摧毀了 ${destroyedCards.length} 名角色，所有打者全數值永久+${bonusPerCard}！`
+      description: `解散乐队！摧毁了 ${totalCards} 名角色，所有打者全数值永久+${bonusPerCard}！`
     };
   }
 
@@ -581,16 +693,16 @@ export class EffectProcessor {
       type: 'max_stats',
       stats: effectData.stats,
       duration: effectData.duration || 'atBat',
-      description: '春日影效果：安打率與專注視為99'
+      description: '春日影效果：安打率与专注视为99'
     });
 
     return {
       success: true,
-      description: `${card.name}：下一位打者的安打率與專注將視為99！`
+      description: `${card.name}：下一位打者的安打率与专注将视为99！`
     };
   }
 
-  // === 輔助方法 ===
+  // === 辅助方法 ===
 
   getTargets(targetType, sourceCard) {
     switch (targetType) {
@@ -624,14 +736,14 @@ export class EffectProcessor {
       if (!cardName || !searchName) return false;
       
       const nameMap = {
-        'rana': '樂奈', 
-        '樂奈': '樂奈',
-        'rāna': '樂奈',
+        'rana': '乐奈', 
+        '乐奈': '乐奈',
+        'rāna': '乐奈',
         'mortis': 'mortis', 
         'mutsuki': '睦', 
         '睦': '睦',
-        'uika': '初華', 
-        '初華': '初華',
+        'uika': '初华', 
+        '初华': '初华',
         'saki': '祥子',
         '祥子': '祥子'
       };
@@ -645,7 +757,7 @@ export class EffectProcessor {
              String(card.name).includes(String(targetName));
     } 
     catch (error) {
-      console.error('❌ isTargetCard 錯誤:', error, { card, targetName });
+      console.error('❌ isTargetCard 错误:', error, { card, targetName });
       return false;
     }
   }
@@ -657,7 +769,7 @@ export class EffectProcessor {
     }
   }
 
-  // === 其他處理器的空實現（避免錯誤）===
+  // === 其他处理器的空实现（避免错误）===
   
   handleBuff(effectData, card) {
     return { success: true, description: `${card.name} Buff效果` };
@@ -766,6 +878,60 @@ export class EffectProcessor {
   handleShuffleDiscardIntoDeck(effectData, card) {
     return { success: true, description: `${card.name} ShuffleDiscardIntoDeck效果` };
   }
+
+  /**
+   * ✅ 新增：状态验证和清理
+   */
+  validateAndCleanState() {
+    // 确保基本数组存在
+    if (!Array.isArray(this.state.player.hand)) {
+      console.warn('⚠️ 修复手牌数组');
+      this.state.player.hand = [];
+    }
+    
+    if (!Array.isArray(this.state.player.deck)) {
+      console.warn('⚠️ 修复牌库数组');
+      this.state.player.deck = [];
+    }
+    
+    if (!Array.isArray(this.state.player.discard)) {
+      console.warn('⚠️ 修复弃牌堆数组');
+      this.state.player.discard = [];
+    }
+    
+    // 清理无效卡牌
+    this.state.player.hand = this.state.player.hand.filter(card => card && card.name);
+    this.state.player.deck = this.state.player.deck.filter(card => card && card.name);
+    this.state.player.discard = this.state.player.discard.filter(card => card && card.name);
+    
+    // 确保手牌不超限
+    const maxHandSize = GAME_CONFIG.HAND.MAX_SIZE;
+    if (this.state.player.hand.length > maxHandSize) {
+      console.warn(`⚠️ 手牌超限，移除多余卡牌: ${this.state.player.hand.length}/${maxHandSize}`);
+      const excessCards = this.state.player.hand.splice(maxHandSize);
+      this.state.player.discard.push(...excessCards);
+    }
+  }
+
+  /**
+   * ✅ 新增：获取状态摘要
+   */
+  getStateSummary() {
+    return {
+      handSize: this.state.player.hand.length,
+      deckSize: this.state.player.deck.length,
+      discardSize: this.state.player.discard.length,
+      totalCards: this.state.player.hand.length + this.state.player.deck.length + this.state.player.discard.length,
+      nextBuffsCount: this.nextCardBuffs.length,
+      basesOccupied: this.state.bases.filter(Boolean).length
+    };
+  }
 }
 
-console.log('✅ 修復版效果系統載入完成');
+console.log('✅ 修复版效果系统载入完成');
+console.log('🔧 修复内容:');
+console.log('  - 抽牌逻辑：确保永远不会手牌为空');
+console.log('  - 洗牌逻辑：从弃牌堆自动恢复牌库');
+console.log('  - 紧急机制：创建基础牌避免死锁');
+console.log('  - 状态验证：自动清理和修复异常状态');
+console.log('  - 永久加成：正确处理解散乐队等效果');
